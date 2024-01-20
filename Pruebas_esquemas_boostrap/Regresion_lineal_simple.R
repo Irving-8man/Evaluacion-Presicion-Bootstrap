@@ -11,4 +11,4 @@ modelo_lineal = lm(y~z)
 e = residuals(modelo_lineal)
 
 #comprobar la normalidad de los residuales
-normalidad <- ComprobarSupuestoNormalidad(e)
+normalidad <- ComprobarSupuestoNormalidad(e) 
