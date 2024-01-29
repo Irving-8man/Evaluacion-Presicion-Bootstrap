@@ -36,6 +36,7 @@ yAjustados <- fitted(modeloLineal)
 nResiduales <- length(residuales)
 originalR2 <- summary(modeloLineal)$r.squared
 CME <- summary(modeloLineal)$sigma**2
+hii <- hatvalues(modeloLineal)
 
 #Proceso regresión robusta, paso 1
 modeloLinealRobusto <- lmrob(y ~ z, method = "MM")
@@ -55,10 +56,14 @@ w[xx] <- (constantePeso / w[xx])*w[xx]# Actualizar los valores de W para los cas
 residualesRobustosPonderados <- w*residualesRobustos
 
 #Muestras boostrap
-CalcularMuestrasBootstrapWu1(z,B=100,nResidualesRobustos,yAjustadosRobustos,residualesRobustosPonderados,modeloLineal)
-CalcularMuestrasBootstrapWu2(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,modeloLineal,residuales)
-CalcularMuestrasBootstrapWu3(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,modeloLineal)
+CalcularMuestrasBootstrapWu1(z,B=100,nResidualesRobustos,yAjustadosRobustos,residualesRobustosPonderados,hii)
+CalcularMuestrasBootstrapWu2(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii,residuales)
+CalcularMuestrasBootstrapWu3(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii)
 
+CalcularMuestrasBootstrapLiu1(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
+CalcularMuestrasBootstrapLiu2(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
+
+CalcularMuestrasBootstrapWild(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustos)
 
 #comprobar la normalidad y homoestecidad de los residuales
 hayNormalidad <- ComprobarSupuestoNormalidad(residuales)
