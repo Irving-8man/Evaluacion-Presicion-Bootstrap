@@ -1,9 +1,10 @@
-library('bootstrap') 
+
 
 #Funcion para obtener el intervalo de confianza de R2 de un modelo
 #con N-VC
 
-CalcularIntervalosConfianzaBootstrapNVC<- function(muestrasR2Bootstrap,B,nivSignicancia=0.95){
+CalcularIntervalosConfianzaBootstrapNVC<- function(muestrasR2Bootstrap,B, nivSignicancia=0.95){
+  alfa <- 1-nivSignicancia
   vectorR2Bootstrap <- muestrasR2Bootstrap[[2]]
   #Metodo percentil
   intervaloConfianzaPercentil <- mean(vectorR2Bootstrap) + qt(nivSignicancia, B - 1) * sd(vectorR2Bootstrap) * c( - 1, +1)/sqrt(B) 
