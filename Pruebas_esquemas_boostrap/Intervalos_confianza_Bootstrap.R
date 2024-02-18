@@ -1,0 +1,103 @@
+
+
+#Funcion para obtener el intervalo de confianza de R2 de un modelo
+#con N-VC
+
+CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
+  alfa <- 1-nivSignicancia
+  vectorR2Bootstrap <- muestrasR2Bootstrap
+  n <- length(vectorR2Bootstrap)
+  puntosCriticos <- quantile(vectorR2Bootstrap, c(alfa/2, 1 - alfa/2)) # Aproximación bootstrap de los puntos críticos
+  ICInfBootP <- originalR2 - puntosCriticos[2] / sqrt(n)
+  ICSupBootP <- originalR2 - puntosCriticos[1] / sqrt(n)
+  intervaloConfianzaPercentil <-as.vector(c(ICInfBootP, ICSupBootP))
+  return(intervaloConfianzaPercentil)
+}
+
+
+
+#Funcion para calcular el intervalo de confianza con Bootstrap-T
+CalcularIntervaloConfianzaBootstrapT <- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
+  alfa <- 1-nivSignicancia
+  vectorR2Bootstrap <- muestrasR2Bootstrap
+  n <- length(vectorR2Bootstrap)
+  puntosCriticos <- qt(c(alfa/2, 1 - alfa/2),n-1) # Aproximación bootstrap de los puntos críticos
+  ICInfBootT <- originalR2 + puntosCriticos[1] * sd(vectorR2Bootstrap)/sqrt(n)
+  ICSupBootT <- originalR2 + puntosCriticos[2] * sd(vectorR2Bootstrap)/sqrt(n)
+  intervaloConfianzaBootT <- c(ICInfBootT, ICSupBootT)
+  return(intervaloConfianzaBootT)
+}
+
+#Funcion para calcular el intervalo de confianza con bootstrap iterado
+CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
+  #Paso 1: encuentra theta^ usando x = (X1,...Xn) = orginalR2
+  #Paso 2: extraer remuestras x^*1...x^*B de x . Para cada remuestra calcular
+  #theta^*1...theta^*B. aqui tendriamos los R^*1 y los x^*B = (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+  
+  #Paso 3: Para cada uno de las B remuestras x^*1...x^*B de x, remuestrear B1 o C veces
+  #para obtener  remuestras x^** 11 ... x^** 1C ... x^**B1 ... x^** BC. Para cada conjunto
+  #de remuestras internas C  x^** b1...x^** bC, b= 1...B calcular sus versiones 
+  #theta^** b1... theta^** bC, donde el estimado bootstrap de P(theta^** <= theta^ | x^* b)
+  #es la proporción de los C valores theta^** b1... theta^** bC que son menores o iguales a 
+  #theta^. 
+  #Elija varios niveles l1, l2, l3... cerca del nivel alfa deseado y cuente el número 
+  #de veces que se cumple la condición i para las remuestras B. 
+  #La proporción de remuestras B para las cuales se cumple la condición i es una aproximación a
+  # pi^(li), i=1,2..
+  
+  #Paso 4: obten un aproximado valor de delta^alpha que cumple pi^(delta^alpha) = alpha para la
+  #interpilación entre (li,pi^(delta^alpha))
+  
+  #Paso 5: el intervalo de confianza del bootstrap interativo es el metodo percentil del 
+  #nivel nominal  delta^alpha construido usando los theta^*1...theta^*B del paso 2
+  
+  #I1(a) = [ theta^* B,[(1 - delta_alpha)B/2] + 1, theta^* B,[(1 + delta_alpha)B/2] + 1] 
+
+}
+
+
+#Funcion para caluclar el intervalo de confianzad con percentil con sesgo corregido acelerado
+CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Bootstrap,nivSignicancia=0.95){
+  alfa=1-nivSignicancia
+  vectorR2Bootstrap <- muestrasR2Bootstrap
+  n <- length(y)
+  p0 <- length(which(vectorR2Bootstrap >= originalR2) )/B #proporcion de e Rˆ2i’s ≥ Rˆ2
+  vectorR2i <- numeric(n)
+
+  #Obteniendo las Rˆ2−i
+  for (i in 1:n){
+    vectorR2i[i] <- summary(lm(y[-i]~z[-i]))$r.squared
+  }
+  
+  #Calculo de Rˆ2−iprom
+  R2iPromedio <- mean(vectorR2i)
+  
+  #Calculando las diferencias Rˆ2−iprom - Rˆ2−i
+  diferenciasR2iPi <- R2iPromedio - vectorR2i
+  
+  #suma de las diferencias elevadas a cudrado y al cubo
+  sumaDiferenciasCuad <- sum(diferenciasR2iPi**2)
+  sumaDiferenciasCubo <- sum(diferenciasR2iPi**3)
+  
+  #Constante de aceleracion
+  a <- sumaDiferenciasCubo/(6*(sumaDiferenciasCuad**1.5))
+  
+  ZL=(qnorm(1-p0) - qnorm(1-alfa/2) )/(1-a *(qnorm(1-p0) - qnorm(1-alfa/2))) +qnorm(1-p0)
+  ZU=(qnorm(1-p0) + qnorm(1-alfa/2) )/(1-a *(qnorm(1-p0) + qnorm(1-alfa/2))) +qnorm(1-p0)
+
+  ICInfBootBCa <- quantile(vectorR2Bootstrap,probs= pnorm(ZL))
+  ICSupBootBCa <- quantile(vectorR2Bootstrap,probs= pnorm(ZU))
+  intervaloConfianzaBootBCa <- as.vector(c(ICInfBootBCa, ICSupBootBCa))
+  return(intervaloConfianzaBootBCa)
+}
+
+#Funcion para caluclar el intervalo de confianzad con ABC
+CalcularIntervaloConfianzaBootstrapABC <- function(muestrasR2Bootstrap,nivSignicancia=0.95){
+  vectorR2Bootstrap <- muestrasR2Bootstrap
+  fabc <-function(x, w) w%*%x #ABC uses weighted 
+  intervalo<- abc.ci(vectorR2Bootstrap, fabc, conf = nivSignicancia) #ABC method C.I.
+  intervaloConfianzaBootABC <- c(intervalo[2],intervalo[3])
+  return(intervaloConfianzaBootABC)
+}
+
+

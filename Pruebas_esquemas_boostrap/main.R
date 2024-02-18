@@ -1,10 +1,11 @@
 #cargando librerias
 library("robustbase")
+library("boot")
 
 #Carga de las funciones de pruebas de supuestos
 source("Pruebas_esquemas_boostrap/Pruebas_supuestos_regresion_lineal.R")
 source("Pruebas_esquemas_boostrap/Esquemas_Bootstrap.R")
-source("Pruebas_esquemas_boostrap/Intervalos_confianza_Bootstrap_N-VC.R")
+source("Pruebas_esquemas_boostrap/Intervalos_confianza_Bootstrap.R")
 
 data0 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_0.csv")
 data1 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_1.csv")
@@ -18,6 +19,8 @@ caso1 <- 1
 caso2 <- 2
 caso3 <- 3
 casoRealizar <- 0
+
+#Numero de esquemas
 
 
 #Carga de los datos
@@ -39,6 +42,11 @@ originalR2 <- summary(modeloLineal)$r.squared
 CME <- summary(modeloLineal)$sigma**2
 hii <- hatvalues(modeloLineal)
 
+#comprobar la normalidad y homoestecidad de los residuales
+hayNormalidad <- ComprobarSupuestoNormalidad(residuales)
+hayHomoestacidad <- ComprobarVarianzaConstante(z,modeloLineal)
+
+
 #Proceso regresión robusta, paso 1
 modeloLinealRobusto <- lmrob(y ~ z, method = "MM")
 residualesRobustos <- modeloLinealRobusto$residuals
@@ -48,7 +56,6 @@ CMERobusto <- modeloLinealRobusto$scale**2
 
 
 #Ponderacion de los residulales
-
 #Propuesto
 x=abs(residualesRobustos)/sqrt(CMERobusto)
 w <- rep(1,nResidualesRobustos)
@@ -57,6 +64,7 @@ w[xx] <- (constantePeso / w[xx])# Actualizar los valores de W para los casos don
 residualesRobustosPonderados <- w*residualesRobustos
 
 #Muestras boostrap
+set.seed(1)
 muestrasBootstrapWu1 <- CalcularMuestrasBootstrapWu1(z,B=100,nResidualesRobustos,yAjustadosRobustos,residualesRobustosPonderados,hii)
 muestrasBootstrapWu2 <-CalcularMuestrasBootstrapWu2(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii,residuales)
 muestrasBootstrapWu3 <-CalcularMuestrasBootstrapWu3(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii)
@@ -67,12 +75,9 @@ muestrasBootstrapLiu2 <-CalcularMuestrasBootstrapLiu2(z,B=100,yAjustadosRobustos
 muestrasBootstrapWild <-CalcularMuestrasBootstrapWild(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustos)
 
 
-
-
-#comprobar la normalidad y homoestecidad de los residuales
-hayNormalidad <- ComprobarSupuestoNormalidad(residuales)
-hayHomoestacidad <- ComprobarVarianzaConstante(z,modeloLineal)
-
-
+CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+CalcularIntervaloConfianzaBootstrapBCa(y,z,originalR2,B,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
 
 
