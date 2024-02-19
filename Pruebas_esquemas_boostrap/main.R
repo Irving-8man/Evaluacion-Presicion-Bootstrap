@@ -20,12 +20,28 @@ caso2 <- 2
 caso3 <- 3
 casoRealizar <- 0
 
-#Numero de esquemas
+#Numero de esquemas, parte 1
+# funcion ->implementarRemuestreosBootsR (data=>(z,simulados,y,reales),tipoEsquema,B)
+# esquemas => (1:wu1, 2:wu2, 3:wu3, 4:liu1, 5:liu2, 6:normal)
+# return=> c(1:B)
 
 
-#Carga de los datos
-y <- data0[[1]]
-z <- data0[[2]]
+#Funcion principal
+#funcion -> main(data, alpha,nivConfianza)
+#supuestos-> implementacion
+main -> function(data, alpha=0.05, nivConfianza=0.95){
+  #Carga de los datos
+
+  
+}
+
+
+z <- data0[[1]]
+y <- data0[[2]]
+
+
+
+
 
 B <- 100 #numero de muestras Booststrap
 nivSignicancia <- 0.95
@@ -65,14 +81,15 @@ residualesRobustosPonderados <- w*residualesRobustos
 
 #Muestras boostrap
 set.seed(1)
-muestrasBootstrapWu1 <- CalcularMuestrasBootstrapWu1(z,B=100,nResidualesRobustos,yAjustadosRobustos,residualesRobustosPonderados,hii)
-muestrasBootstrapWu2 <-CalcularMuestrasBootstrapWu2(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii,residuales)
-muestrasBootstrapWu3 <-CalcularMuestrasBootstrapWu3(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii)
+# muestrasBootstrapWu1 <-CalcularMuestrasBootstrapWu1(z,B=100,nResidualesRobustos,yAjustadosRobustos,residualesRobustosPonderados,hii)
+# muestrasBootstrapWu2 <-CalcularMuestrasBootstrapWu2(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii,residuales)
+# muestrasBootstrapWu3 <-CalcularMuestrasBootstrapWu3(z,B=100,yAjustadosRobustos,residualesRobustosPonderados,hii)
+# 
+# muestrasBootstrapLiu1 <-CalcularMuestrasBootstrapLiu1(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
+# muestrasBootstrapLiu2 <-CalcularMuestrasBootstrapLiu2(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
+# 
+# muestrasBootstrapWild <-CalcularMuestrasBootstrapWild(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustos)
 
-muestrasBootstrapLiu1 <-CalcularMuestrasBootstrapLiu1(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
-muestrasBootstrapLiu2 <-CalcularMuestrasBootstrapLiu2(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustosPonderados,hii)
-
-muestrasBootstrapWild <-CalcularMuestrasBootstrapWild(z,B=100,yAjustadosRobustos,nResidualesRobustos,residualesRobustos)
 
 
 CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
