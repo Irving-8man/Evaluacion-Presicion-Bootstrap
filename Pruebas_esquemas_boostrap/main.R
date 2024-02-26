@@ -29,16 +29,52 @@ casoRealizar <- 0
 #Funcion principal
 #funcion -> main(data, alpha,nivConfianza)
 #supuestos-> implementacion
-main -> function(data, alpha=0.05, nivConfianza=0.95){
+source("Pruebas_esquemas_boostrap/Pruebas_supuestos_regresion_lineal.R")
+source("")
+CalcularPrecision <- function(data, alpha=0.05, nivConfianza=0.95){
   #Carga de los datos
+  z <- data[[1]]
+  y <- data[[2]]
+  
+  #Proceso regresion lineal simple
+  modeloLineal <- lm(y~z)
+  residuales <- residuals(modeloLineal)
+ 
+  #comprobar la normalidad y homoestecidad de los residuales
+  hayNormalidad <- ComprobarSupuestoNormalidad(residuales)
+  hayHomoestacidad <- ComprobarVarianzaConstante(z,modeloLineal)
+  
+
+  #Caso 1 -> se cumplen los 4 supuestos (#homocedastacidad, normalidad, media = 0 e independendcia)
+  #Caso 2 -> Cumple  homocedasticidad e independencia, pero no normalidad
+  #Caso 3 -> no homocedasticidad
 
   
+  if(hayNormalidad && hayHomoestacidad && mediaCero && esIndependiente){
+    # se utiliza el estimador de minimos cuadrados
+    #implmentar los 6 esquemas de remuestreo
+    #calcular y retornar los intervalos a este caso;percentil, boots-t e iterativo
+    
+  }
+  
+  
+  if( !hayNormalidad && esIndependiente && hayHomoestacidad){
+    # se utiliza el estimador robusto MM  
+    # los residuales robustos sin ponderacion
+    #implmentar los 6 esquemas de remuestreo
+    #calcular y retornar los intervalos a este caso; BCa, ABC y ponderado
+  }
+  
+  
+  if(!hayHomoestacidad){
+    # se utiliza el estimador robusto MM  
+    # los residuales robustos con ponderacion
+    #implmentar los 6 esquemas de remuestreo
+    #calcular y retornar los intervalos a este caso; BCa, ABC y ponderado
+  }
+  
+  
 }
-
-
-z <- data0[[1]]
-y <- data0[[2]]
-
 
 
 
@@ -92,9 +128,9 @@ set.seed(1)
 
 
 
-CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
-CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
-CalcularIntervaloConfianzaBootstrapBCa(y,z,originalR2,B,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
-CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+# CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+# CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+# CalcularIntervaloConfianzaBootstrapBCa(y,z,originalR2,B,muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
+# CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap=muestrasBootstrapLiu2[,2])
 
 
