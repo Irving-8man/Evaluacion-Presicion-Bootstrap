@@ -1,36 +1,28 @@
 #Auxiliar de implementación de los esquemas Roboustos Bootstrap
 # funciont <- (muestrasBotss, nivConfianza,tipoIntervalo)
-#intervalos => (1:Percentil, 2:Bootstrap-t, 3:wu3, 4:liu1, 5:liu2, 6:normal)
+#intervalos => (1:Percentil, 2:Bootstrap-t, 3:BootstrapIterativo, 4:liu1, 5:liu2, 6:normal)
 # return => c(1:2)
-
-#tratar de implementar con librerias R
-source("Pruebas_esquemas_boostrap/Esquemas_Bootstrap.R")
-
-ImplementarIntervalosConfianza <- function(originalR2,muestrasR2Boots,nivSignicancia = 0.95,tipoIntervalo){
-  muestrasR2Bootstrap <- muestrasR2Boots
-  Intervalo <- function(muestrasR2Bootstrap,tipoIntervalo){
+ImplementarIntervalosConfianza <- function(data,originalR2,muestrasR2Boot,nivConfianza=0.95,tipoIntervalo){
     switch(tipoIntervalo,
-           'Perc' <- CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Bootstrap,nivSignicancia),
-           'BootT' <- CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Bootstrap,nivSignicancia),
-           'Iter' <- CalcularIntervaloConfianzaBootstrapIt(originalR2,muestrasR2Bootstrap,nivSignicancia),
-           'BCa' <- CalcularIntervaloConfianzaBootstrapBCa(y,z,originalR2,B,muestrasR2Bootstrap,nivSignicancia),
-           'ABC' <- CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap,nivSignicancia),
-           'Pond' <- CalcularIntervaloConfianzaBootstrapPond(muestrasR2Bootstrap,nivSignicancia),
-           
-           stop()
+       'Perc' <- CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Boot,nivConfianza=0.95),
+       'BootT' <- CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Boot,nivConfianza=0.95),
+       'Iter' <- CalcularIntervaloConfianzaBootstrapIt(originalR2,muestrasR2Boot,nivConfianza=0.95),
+       'BCa' <- CalcularIntervaloConfianzaBootstrapBCa(data,originalR2,B,muestrasR2Bootstrap,nivConfianza),
+       'ABC' <- CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap,nivConfianza),
+       'Pond' <- CalcularIntervaloConfianzaBootstrapPond(muestrasR2Bootstrap,nivConfianza),
+       
+       stop("Intervalo no válido")
     )
-  }
-  
-  return(Intervalo(muestrasR2Bootstrap,tipoIntervalo))
 }
 
 
 #Funcion para obtener el intervalo de confianza-Percentil
-CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
-  alfa <- 1-nivSignicancia
-  vectorR2Bootstrap <- muestrasR2Bootstrap
+CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Boot,nivConfianza=0.95){
+  alpha <- 1-nivConfianza
+  vectorR2Bootstrap <- muestrasR2Boot
   n <- length(vectorR2Bootstrap)
-  puntosCriticos <- quantile(vectorR2Bootstrap, c(alfa/2, 1 - alfa/2)) # Aproximación bootstrap de los puntos críticos
+  
+  puntosCriticos <- quantile(vectorR2Bootstrap, c(alpha/2, 1 - alpha/2)) # Aproximación bootstrap de los puntos críticos
   ICInfBootP <- originalR2 - puntosCriticos[2] / sqrt(n)
   ICSupBootP <- originalR2 - puntosCriticos[1] / sqrt(n)
   intervaloConfianzaPercentil <-as.vector(c(ICInfBootP, ICSupBootP))
@@ -40,11 +32,12 @@ CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Bootstrap,ni
 
 
 #Funcion para calcular el intervalo de confianza-Bootstrap-T
-CalcularIntervaloConfianzaBootstrapT <- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
-  alfa <- 1-nivSignicancia
-  vectorR2Bootstrap <- muestrasR2Bootstrap
+CalcularIntervaloConfianzaBootstrapT <- function(originalR2,muestrasR2Boot,nivConfianza=0.95){
+  alpha <- 1-nivConfianza
+  vectorR2Bootstrap <- muestrasR2Boot
   n <- length(vectorR2Bootstrap)
-  puntosCriticos <- qt(c(alfa/2, 1 - alfa/2),n-1) # Aproximación bootstrap de los puntos críticos
+  
+  puntosCriticos <- qt(c(alpha/2, 1 - alpha/2),n-1) # Aproximación bootstrap de los puntos críticos
   ICInfBootT <- originalR2 + puntosCriticos[1] * sd(vectorR2Bootstrap)/sqrt(n)
   ICSupBootT <- originalR2 + puntosCriticos[2] * sd(vectorR2Bootstrap)/sqrt(n)
   intervaloConfianzaBootT <- c(ICInfBootT, ICSupBootT)
@@ -52,7 +45,7 @@ CalcularIntervaloConfianzaBootstrapT <- function(originalR2,muestrasR2Bootstrap,
 }
 
 #Funcion para calcular el intervalo de confianza con bootstrap iterado
-CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
+CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Boot,nivConfianza=0.95){
   #Paso 1: encuentra theta^ usando x = (X1,...Xn) = orginalR2
   #Paso 2: extraer remuestras x^*1...x^*B de x . Para cada remuestra calcular
   #theta^*1...theta^*B. aqui tendriamos los R^*1 y los x^*B = (tt*residualesRobustosPonderados)/(sqrt(1-hii))
@@ -75,13 +68,12 @@ CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Bootstrap
   #nivel nominal  delta^alpha construido usando los theta^*1...theta^*B del paso 2
   
   #I1(a) = [ theta^* B,[(1 - delta_alpha)B/2] + 1, theta^* B,[(1 + delta_alpha)B/2] + 1] 
-
 }
 
 #####################################
 
 #Intervalo de confianza-BCa
-CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Bootstrap,nivSignicancia=0.95){
+CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Boot,nivConfianza=0.95){
   alfa=1-nivSignicancia
   vectorR2Bootstrap <- muestrasR2Bootstrap
   n <- length(y)
@@ -116,10 +108,10 @@ CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Bo
 }
 
 #Funcion para calcular el intervalo de confianza con ABC
-CalcularIntervaloConfianzaBootstrapABC <- function(muestrasR2Bootstrap,nivSignicancia=0.95){
+CalcularIntervaloConfianzaBootstrapABC <- function(muestrasR2Boot,nivConfianza=0.95){
   vectorR2Bootstrap <- muestrasR2Bootstrap
   fabc <-function(x, w) w%*%x #ABC usando sus pesos
-  intervalo<- abc.ci(vectorR2Bootstrap, fabc, conf = nivSignicancia) #ABC method C.I.
+  intervalo<- abc.ci(vectorR2Bootstrap, fabc, conf = nivConfianza) #ABC method C.I.
   intervaloConfianzaBootABC <- c(intervalo[2],intervalo[3])
   return(intervaloConfianzaBootABC)
 }
@@ -127,6 +119,6 @@ CalcularIntervaloConfianzaBootstrapABC <- function(muestrasR2Bootstrap,nivSignic
 
 
 #Funcion para calcualr el intervalo de confianza con Ponderado
-CalcularIntervaloConfianzaBootstrapPond <- function(muestrasR2Bootstrap,nivSignicancia=0.95){
+CalcularIntervaloConfianzaBootstrapPond <- function(muestrasR2Boot,nivConfianza=0.95){
 #
 }

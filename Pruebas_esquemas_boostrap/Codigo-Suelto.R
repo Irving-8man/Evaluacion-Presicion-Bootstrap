@@ -95,3 +95,81 @@ ic_sup_boot <- x_barra - pto_crit[1]/sqrt(n)
 IC_boot <- c(ic_inf_boot, ic_sup_boot)
 names(IC_boot) <- paste0(100*c(alfa/2, 1-alfa/2), "%")
 IC_boot
+
+
+
+
+
+
+
+data0 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_0.csv")
+z <- data0[[1]]
+y <- data0[[2]]
+
+B <- 100
+constantePeso <- 3
+#Proceso regresion lineal simple
+modeloLineal <- lm(y~z)
+residuales <- residuals(modeloLineal)
+coeficientes <- coef(modeloLineal)
+yAjustados <- fitted(modeloLineal)
+nResiduales <- length(residuales)
+originalR2 <- summary(modeloLineal)$r.squared
+#CME <- summary(modeloLineal)$sigma**2
+hii <- hatvalues(modeloLineal)
+
+#Proceso regresión robusta
+modeloLinealRobusto <- lmrob(y ~ z, method = "MM")
+residualesRobustos <- modeloLinealRobusto$residuals
+nResidualesRobustos <- length(residualesRobustos)
+yAjustadosRobustos <- modeloLinealRobusto$fitted.values
+CMERobusto <- modeloLinealRobusto$scale**2
+
+#Ponderacion de los residulales
+#Propuesto
+x=abs(residualesRobustos)/sqrt(CMERobusto)
+w <- rep(1,nResidualesRobustos)
+xx <- which(x > constantePeso) #indices paso 2
+w[xx] <- (constantePeso / w[xx])# Actualizar los valores de W para los casos donde x > 3,paso3
+residualesRobustosPonderados <- w*residualesRobustos
+
+
+
+
+
+
+
+
+
+ImplementarRemuestreosBootsR <- function(z,y,B,residuales,tipoEsquema){
+  
+  Remuestra <- function(residualesRobustosPonderados,tipoEsquema){
+    switch(tipoEsquema,
+           'Wu1' <- CalcularMuestrasBootstrapWu1(residualesRobustosPonderados),
+           'Wu2' <- CalcularMuestrasBootstrapWu2(residualesRobustosPonderados),
+           'Wu3' <- CalcularMuestrasBootstrapWu3(residualesRobustosPonderados),
+           'Liu1' <- CalcularMuestrasBootstrapLiu1(residualesRobustosPonderados),
+           'Liu2' <- CalcularMuestrasBootstrapLiu2(residualesRobustosPonderados),
+           'Wild' <- CalcularMuestrasBootstrapWild(residualesRobustos),
+           
+           stop()
+    )
+  }
+  
+  return(Remuestra(residualesRobustosPonderados,tipoEsquema))
+  
+}
+
+CME <- summary(modeloLineal)$sigma**2
+
+
+CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Bootstrap,nivSignicancia=0.95){
+  alfa <- 1-nivSignicancia
+  vectorR2Bootstrap <- muestrasR2Bootstrap
+  n <- length(vectorR2Bootstrap)
+  puntosCriticos <- quantile(vectorR2Bootstrap, c(alfa/2, 1 - alfa/2)) # Aproximación bootstrap de los puntos críticos
+  ICInfBootP <- originalR2 - puntosCriticos[2] / sqrt(n)
+  ICSupBootP <- originalR2 - puntosCriticos[1] / sqrt(n)
+  intervaloConfianzaPercentil <-as.vector(c(ICInfBootP, ICSupBootP))
+  return(intervaloConfianzaPercentil)
+}

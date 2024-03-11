@@ -2,63 +2,26 @@
 #Numero de esquemas, parte 1
 #esquemas => (1:wu1, 2:wu2, 3:wu3, 4:liu1, 5:liu2, 6:normal)
 #return=> c(1:B)
-library("robustbase")
-library("boot")
-data0 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_0.csv")
-z <- data0[[1]]
-y <- data0[[2]]
-
-B <- 100
-constantePeso <- 3
-#Proceso regresion lineal simple
-modeloLineal <- lm(y~z)
-residuales <- residuals(modeloLineal)
-coeficientes <- coef(modeloLineal)
-yAjustados <- fitted(modeloLineal)
-nResiduales <- length(residuales)
-originalR2 <- summary(modeloLineal)$r.squared
-#CME <- summary(modeloLineal)$sigma**2
-hii <- hatvalues(modeloLineal)
-
-#Proceso regresión robusta
-modeloLinealRobusto <- lmrob(y ~ z, method = "MM")
-residualesRobustos <- modeloLinealRobusto$residuals
-nResidualesRobustos <- length(residualesRobustos)
-yAjustadosRobustos <- modeloLinealRobusto$fitted.values
-CMERobusto <- modeloLinealRobusto$scale**2
-
-#Ponderacion de los residulales
-#Propuesto
-x=abs(residualesRobustos)/sqrt(CMERobusto)
-w <- rep(1,nResidualesRobustos)
-xx <- which(x > constantePeso) #indices paso 2
-w[xx] <- (constantePeso / w[xx])# Actualizar los valores de W para los casos donde x > 3,paso3
-residualesRobustosPonderados <- w*residualesRobustos
-
-ImplementarRemuestreosBootsR <- function(z,y,B,tipoEsquema){
-  Remuestra <- function(residualesRobustosPonderados,tipoEsquema){
-      switch(tipoEsquema,
-        'Wu1' <- CalcularMuestrasBootstrapWu1(residualesRobustosPonderados),
-        'Wu2' <- CalcularMuestrasBootstrapWu2(residualesRobustosPonderados),
-        'Wu3' <- CalcularMuestrasBootstrapWu3(residualesRobustosPonderados),
-        'Liu1' <- CalcularMuestrasBootstrapLiu1(residualesRobustosPonderados),
-        'Liu2' <- CalcularMuestrasBootstrapLiu2(residualesRobustosPonderados),
-        'Wild' <- CalcularMuestrasBootstrapWild(residualesRobustos),
-        
-        stop()
-        )
-  }
-  
-  return(Remuestra(residualesRobustosPonderados,tipoEsquema))
+ImplementarRemuestreosBootsR <- function(z,residuales,residualesRobustos,residualesRP,yAjRob,hii,B,tipo){
+  switch(tipo,
+  'Wu1' <- CalcularMuestrasBootstrapWu1(z,residualesRP,yAjRob,hii,B),
+  'Wu2' <- CalcularMuestrasBootstrapWu2(z,residuales,residualesRP,yAjRob,hii,B),
+  'Wu3' <- CalcularMuestrasBootstrapWu3(z,residualesRP,yAjRob,hii,B),
+  'Liu1' <- CalcularMuestrasBootstrapLiu1(z,residualesRP,yAjRob,hii,B),
+  'Liu2' <- CalcularMuestrasBootstrapLiu2(z,residualesRP,yAjRob,hii,B),
+  'Wild' <- CalcularMuestrasBootstrapWild(z,residualesRobustos,yAjRob,B),
+  stop("Esquema de remuestreo no válido")
+  )
 }
 
 
 #Funcion con el esquema Wu 1
-CalcularMuestrasBootstrapWu1 <- function(residualesRobustosPonderados){
+CalcularMuestrasBootstrapWu1 <- function(z,residualesRP,yAjRob,hii,B=100){
   muestrasBootstrapWu1 <- numeric(B)
+  nRRP <-length(residualesRP)
   for (i in 1:B) {
-    tt <- rnorm(nResidualesRobustos)
-    yBoots <- yAjustadosRobustos + (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+    tt <- rnorm(nRRP)
+    yBoots <- yAjRob + (tt*residualesRP)/(sqrt(1-hii))
     modeloBoots <- lm(yBoots~z)
     r2Boots <- summary(modeloBoots)$r.squared
     muestrasBootstrapWu1[i] <- c(r2Boots)
@@ -68,12 +31,12 @@ CalcularMuestrasBootstrapWu1 <- function(residualesRobustosPonderados){
 
 
 #Funcion con el esquema Wu 2
-CalcularMuestrasBootstrapWu2 <- function(residualesRobustosPonderado){
+CalcularMuestrasBootstrapWu2 <- function(z,residuales,residualesRP,yAjRob,hii,B=100){
   muestrasBootstrapWu2 <- numeric(B)
   for (i in 1:B) {
     ai <- (residuales-mean(residuales))/sd(residuales)
     tt <- sample(ai,replace=T)
-    yBoots <- yAjustadosRobustos + (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+    yBoots <- yAjRob + (tt*residualesRP)/(sqrt(1-hii))
     modeloBoots <- lm(yBoots~z)
     r2Boots <-summary(modeloBoots)$r.squared
     muestrasBootstrapWu2[i] <- c(r2Boots)
@@ -82,15 +45,15 @@ CalcularMuestrasBootstrapWu2 <- function(residualesRobustosPonderado){
 }
 
 #Funcion con el esquema Wu 3
-CalcularMuestrasBootstrapWu3 <- function(residualesRobustosPonderados){
+CalcularMuestrasBootstrapWu3 <- function(z,residualesRP,yAjRob,hii,B=100){
   muestrasBootstrapWu3 <- numeric(B)
   for (i in 1:B) {
-    mediana <- median(residualesRobustosPonderados)
-    NMAD <- (1/0.6745)*median( abs(residualesRobustosPonderados-mediana) )
-    Rai <- (residualesRobustosPonderados-mediana)/NMAD
+    mediana <- median(residualesRP)
+    NMAD <- (1/0.6745)*median( abs(residualesRP-mediana) )
+    Rai <- (residualesRP-mediana)/NMAD
     tt <- sample(Rai,replace=T)
     
-    yBoots <- yAjustadosRobustos + (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+    yBoots <- yAjRob + (tt*residualesRP)/(sqrt(1-hii))
     modeloBoots <- lm(yBoots~z)
     r2Boots <-summary(modeloBoots)$r.squared
     muestrasBootstrapWu3[i] <- c(r2Boots)
@@ -99,11 +62,12 @@ CalcularMuestrasBootstrapWu3 <- function(residualesRobustosPonderados){
 }
 
 #Funcion con el esquema Liu 1
-CalcularMuestrasBootstrapLiu1 <- function(residualesRobustosPonderados){
+CalcularMuestrasBootstrapLiu1 <- function(z,residualesRP,yAjRob,hii,B=100){
   muestrasBootstrapLui1 <- numeric(B)
+  nRRP <-length(residualesRP)
   for (i in 1:B) {
-    tt <- rgamma(nResidualesRobustos,2,4)
-    yBoots <- yAjustadosRobustos + (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+    tt <- rgamma(nRRP,2,4)
+    yBoots <- yAjRob + (tt*residualesRP)/(sqrt(1-hii))
     modeloBoots <- lm(yBoots~z)
     r2Boots <-summary(modeloBoots)$r.squared
     muestrasBootstrapLui1[i] <- c(r2Boots)
@@ -112,16 +76,17 @@ CalcularMuestrasBootstrapLiu1 <- function(residualesRobustosPonderados){
 }
 
 #Funcion con el esquema Liu 2
-CalcularMuestrasBootstrapLiu2 <- function(residualesRobustosPonderados){
+CalcularMuestrasBootstrapLiu2 <- function(z,residualesRP,yAjRob,hii,B=100){
   muestrasBootstrapLui2 <- numeric(B)
+  nRRP <-length(residualesRP)
   for (i in 1:B) {
     media1 <- 0.5*sqrt(17/6)+sqrt(1/6)
     media2 <- 0.5*sqrt(17/6)-sqrt(1/6)
-    H <- rnorm(nResidualesRobustos,media1,sqrt(0.5))
-    D <- rnorm(nResidualesRobustos,media2,sqrt(0.5))
+    H <- rnorm(nRRP,media1,sqrt(0.5))
+    D <- rnorm(nRRP,media2,sqrt(0.5))
     tt <- H*D-media1*media2
    
-    yBoots <- yAjustadosRobustos + (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+    yBoots <- yAjRob + (tt*residualesRP)/(sqrt(1-hii))
     modeloBoots <- lm(yBoots~z)
     r2Boots <-summary(modeloBoots)$r.squared
     muestrasBootstrapLui2[i] <- c(r2Boots)
@@ -130,11 +95,11 @@ CalcularMuestrasBootstrapLiu2 <- function(residualesRobustosPonderados){
 }
 
 #Funcion con el esquema Wild 
-CalcularMuestrasBootstrapWild <- function(residualesRobustos){
+CalcularMuestrasBootstrapWild <- function(z,residualesRobustos,yAjRob,B=100){
   muestrasBootstrapWild <- numeric(B)
   for (i in 1:B) {
     residualesBootstrap <- sample(residualesRobustos, replace =TRUE) #remplazo
-    yBoots <- yAjustadosRobustos + residualesBootstrap
+    yBoots <- yAjRob + residualesBootstrap
     modeloBoots <- lm(yBoots~z)
     r2Boots <-summary(modeloBoots)$r.squared
     muestrasBootstrapWild[i] <- c(r2Boots)
@@ -143,4 +108,15 @@ CalcularMuestrasBootstrapWild <- function(residualesRobustos){
 }
 
 
+#Funcion de apoyo para ponderar residuales
+PoderarResidualesRobustos <-function(residualesRobustos,CMERobusto){
+  constantePeso <- 3
+  n <- length(residualesRobustos)
+  x <- abs(residualesRobustos)/sqrt(CMERobusto)
+  w <- rep(1,n)
+  xx <- which(x > constantePeso) 
+  w[xx] <- (constantePeso / w[xx])
+  residualesRobustosPonderados <- w*residualesRobustos
+  return(residualesRobustosPonderados)
+}
 
