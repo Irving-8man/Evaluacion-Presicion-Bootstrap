@@ -2,14 +2,17 @@
 # funciont <- (muestrasBotss, nivConfianza,tipoIntervalo)
 #intervalos => (1:Percentil, 2:Bootstrap-t, 3:BootstrapIterativo, 4:liu1, 5:liu2, 6:normal)
 # return => c(1:2)
-ImplementarIntervalosConfianza <- function(data,originalR2,muestrasR2Boot,nivConfianza=0.95,tipoIntervalo){
+ImplementarIntervalosConfianza <- function(data,originalR2,B=100,muestrasR2Boot,nivConfianza=0.95,tipoIntervalo){
     switch(tipoIntervalo,
        'Perc' <- CalcularIntervaloConfianzaPercentil(originalR2,muestrasR2Boot,nivConfianza=0.95),
        'BootT' <- CalcularIntervaloConfianzaBootstrapT(originalR2,muestrasR2Boot,nivConfianza=0.95),
        'Iter' <- CalcularIntervaloConfianzaBootstrapIt(originalR2,muestrasR2Boot,nivConfianza=0.95),
-       'BCa' <- CalcularIntervaloConfianzaBootstrapBCa(data,originalR2,B,muestrasR2Bootstrap,nivConfianza),
-       'ABC' <- CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap,nivConfianza),
+       
+       'BCa' <- CalcularIntervaloConfianzaBootstrapBCa(data,originalR2,B,muestrasR2Boot,nivConfianza=0.95),
+       'ABC' <- CalcularIntervaloConfianzaBootstrapABC(muestrasR2Boot,nivConfianza=0.95),
+       
        'Pond' <- CalcularIntervaloConfianzaBootstrapPond(muestrasR2Bootstrap,nivConfianza),
+       
        'Simt'<-CalcularIntervaloConfianzaBootstrapS(originalR2,muestrasR2Boot,nivConfianza=0.95),
        
        stop("Intervalo no válido")
@@ -101,11 +104,13 @@ CalcularIntervaloConfianzaBootstrapS <- function(originalR2,muestrasR2Boot,nivCo
 #####################################
 
 #Intervalo de confianza-BCa
-CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Boot,nivConfianza=0.95){
-  alfa=1-nivSignicancia
-  vectorR2Bootstrap <- muestrasR2Bootstrap
+CalcularIntervaloConfianzaBootstrapBCa <- function(data,originalR2,B,muestrasR2Boot,nivConfianza=0.95){
+  alfa<-1-nivConfianza
+  z <- data[[1]]
+  y <- data[[2]]
+  vectorR2Bootstrap <- muestrasR2Boot
   n <- length(y)
-  p0 <- length(which(vectorR2Bootstrap >= originalR2) )/B #proporcion de e Rˆ2i’s ≥ Rˆ2 duda
+  p0 <- length(which(vectorR2Bootstrap >= originalR2))/B #proporcion de e Rˆ2i’s ≥ Rˆ2 duda
   vectorR2i <- numeric(n)
 
   #Obteniendo las Rˆ2−i
@@ -137,7 +142,7 @@ CalcularIntervaloConfianzaBootstrapBCa <- function(y,z,originalR2,B,muestrasR2Bo
 
 #Funcion para calcular el intervalo de confianza con ABC
 CalcularIntervaloConfianzaBootstrapABC <- function(muestrasR2Boot,nivConfianza=0.95){
-  vectorR2Bootstrap <- muestrasR2Bootstrap
+  vectorR2Bootstrap <- muestrasR2Boot
   fabc <-function(x, w) w%*%x #ABC usando sus pesos
   intervalo<- abc.ci(vectorR2Bootstrap, fabc, conf = nivConfianza) #ABC method C.I.
   intervaloConfianzaBootABC <- c(intervalo[2],intervalo[3])

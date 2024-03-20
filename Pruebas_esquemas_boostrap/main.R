@@ -3,7 +3,7 @@ data1 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstra
 data2 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_2.csv")
 data3 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_3.csv")
 data4 <- read.csv("C:/Users/irving/Downloads/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/N-VC.csv")
-data <- data0
+data <- data1
 
 #Cargando librerias
 library("robustbase")
@@ -95,11 +95,11 @@ CalcularPrecision <- function(data, alpha=0.05, nivConfianza=0.95){
     for(i in 1:6){
       muestrasR2Boot <- remuestrasBootR[,i]
       #Percentil
-      perc <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=1)
+      perc <- ImplementarIntervalosConfianza(data,originalR2,B,muestrasR2Boot,nivConfianza,tipoIntervalo=1)
       #Bootstrap-t
-      bootT <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=2)
+      bootT <- ImplementarIntervalosConfianza(data,originalR2,B,muestrasR2Boot,nivConfianza,tipoIntervalo=2)
       #Percentil-simetrico
-      simt <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=7)
+      simt <- ImplementarIntervalosConfianza(data,originalR2,B,muestrasR2Boot,nivConfianza,tipoIntervalo=7)
       
       resultados[[i]] <- list( perc, bootT,simt)
     }
@@ -113,12 +113,12 @@ CalcularPrecision <- function(data, alpha=0.05, nivConfianza=0.95){
       
       muestrasR2Boot <- remuestrasBootR[,i]
       #BCa
-      #bca <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=4)
+      bca <- ImplementarIntervalosConfianza(data,originalR2,B,muestrasR2Boot,nivConfianza,tipoIntervalo=4)
       #ABC
-      abc <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=5)
+      abc <- ImplementarIntervalosConfianza(data,originalR2,B,muestrasR2Boot,nivConfianza,tipoIntervalo=5)
       #Ponderado ? Iterativo
       
-      resultados[[i]] <- list(abc)
+      resultados[[i]] <- list( bca,abc)
       
     }
     print(resultados)
