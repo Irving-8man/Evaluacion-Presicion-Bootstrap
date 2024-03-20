@@ -10,6 +10,7 @@ ImplementarIntervalosConfianza <- function(data,originalR2,muestrasR2Boot,nivCon
        'BCa' <- CalcularIntervaloConfianzaBootstrapBCa(data,originalR2,B,muestrasR2Bootstrap,nivConfianza),
        'ABC' <- CalcularIntervaloConfianzaBootstrapABC(muestrasR2Bootstrap,nivConfianza),
        'Pond' <- CalcularIntervaloConfianzaBootstrapPond(muestrasR2Bootstrap,nivConfianza),
+       'Simt'<-CalcularIntervaloConfianzaBootstrapS(originalR2,muestrasR2Boot,nivConfianza=0.95),
        
        stop("Intervalo no válido")
     )
@@ -21,14 +22,13 @@ CalcularIntervaloConfianzaPercentil<- function(originalR2,muestrasR2Boot,nivConf
   alpha <- 1-nivConfianza
   vectorR2Bootstrap <- muestrasR2Boot
   n <- length(vectorR2Bootstrap)
-  
+  media <- mean(vectorR2Bootstrap)
   puntosCriticos <- quantile(vectorR2Bootstrap, c(alpha/2, 1 - alpha/2)) # Aproximación bootstrap de los puntos críticos
-  ICInfBootP <- originalR2 - puntosCriticos[2] / sqrt(n)
-  ICSupBootP <- originalR2 - puntosCriticos[1] / sqrt(n)
+  ICInfBootP <- media - puntosCriticos[2] / sqrt(n)
+  ICSupBootP <- media - puntosCriticos[1] / sqrt(n)
   intervaloConfianzaPercentil <-as.vector(c(ICInfBootP, ICSupBootP))
   return(intervaloConfianzaPercentil)
 }
-
 
 
 #Funcion para calcular el intervalo de confianza-Bootstrap-T
@@ -36,19 +36,25 @@ CalcularIntervaloConfianzaBootstrapT <- function(originalR2,muestrasR2Boot,nivCo
   alpha <- 1-nivConfianza
   vectorR2Bootstrap <- muestrasR2Boot
   n <- length(vectorR2Bootstrap)
-  
-  puntosCriticos <- qt(c(alpha/2, 1 - alpha/2),n-1) # Aproximación bootstrap de los puntos críticos
-  ICInfBootT <- originalR2 + puntosCriticos[1] * sd(vectorR2Bootstrap)/sqrt(n)
-  ICSupBootT <- originalR2 + puntosCriticos[2] * sd(vectorR2Bootstrap)/sqrt(n)
-  intervaloConfianzaBootT <- c(ICInfBootT, ICSupBootT)
+  media <-mean(vectorR2Bootstrap)
+  puntosCriticos <- quantile(vectorR2Bootstrap, c(alpha/2, 1 - alpha/2)) # Aproximación bootstrap de los puntos críticos
+  ICInfBootT <- media - puntosCriticos[2] * sd(vectorR2Bootstrap)/sqrt(n)
+  ICSupBootT <- media - puntosCriticos[1] * sd(vectorR2Bootstrap)/sqrt(n)
+  intervaloConfianzaBootT <- as.vector(c(ICInfBootT, ICSupBootT))
   return(intervaloConfianzaBootT)
 }
 
+#reconsiderar
 #Funcion para calcular el intervalo de confianza con bootstrap iterado
-CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Boot,nivConfianza=0.95){
+CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,B,muestrasR2Boot,remuestrasBoot,nivConfianza=0.95){
   #Paso 1: encuentra theta^ usando x = (X1,...Xn) = orginalR2
+  theta_hat <- originalR2
+  
   #Paso 2: extraer remuestras x^*1...x^*B de x . Para cada remuestra calcular
   #theta^*1...theta^*B. aqui tendriamos los R^*1 y los x^*B = (tt*residualesRobustosPonderados)/(sqrt(1-hii))
+  x_star <- remuestrasBoot #sean los residuales
+  theta_star <-muestrasR2Boot
+  
   
   #Paso 3: Para cada uno de las B remuestras x^*1...x^*B de x, remuestrear B1 o C veces
   #para obtener  remuestras x^** 11 ... x^** 1C ... x^**B1 ... x^** BC. Para cada conjunto
@@ -60,6 +66,10 @@ CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Boot,nivC
   #de veces que se cumple la condición i para las remuestras B. 
   #La proporción de remuestras B para las cuales se cumple la condición i es una aproximación a
   # pi^(li), i=1,2..
+  C <- 100
+  for(b in 1:B){
+    
+  }
   
   #Paso 4: obten un aproximado valor de delta^alpha que cumple pi^(delta^alpha) = alpha para la
   #interpilación entre (li,pi^(delta^alpha))
@@ -69,6 +79,24 @@ CalcularIntervaloConfianzaBootstrapIt <- function(originalR2,muestrasR2Boot,nivC
   
   #I1(a) = [ theta^* B,[(1 - delta_alpha)B/2] + 1, theta^* B,[(1 + delta_alpha)B/2] + 1] 
 }
+
+#Funcion para calcular el interavlo de confianza con pecercentil-simetrizado
+CalcularIntervaloConfianzaBootstrapS <- function(originalR2,muestrasR2Boot,nivConfianza=0.95){
+  alpha <- 1-nivConfianza
+  vectorR2Bootstrap <- muestrasR2Boot
+  cuasi_dt <- sd(vectorR2Bootstrap)
+  n <- length(vectorR2Bootstrap)
+  media <-mean(vectorR2Bootstrap)
+  puntosCriticos <- quantile(vectorR2Bootstrap, 1 - alpha)# Aproximación bootstrap de los puntos críticos
+  # Construcción del IC
+  ICInfBootS <- media - puntosCriticos * cuasi_dt/sqrt(n)
+  ICSupBootS <- media + puntosCriticos * cuasi_dt/sqrt(n)
+  intervaloConfianzaBootS <- as.vector(c(ICInfBootS, ICSupBootS))
+  return(intervaloConfianzaBootS)
+}
+
+
+
 
 #####################################
 

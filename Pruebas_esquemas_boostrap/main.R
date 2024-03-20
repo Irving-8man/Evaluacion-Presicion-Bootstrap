@@ -98,23 +98,30 @@ CalcularPrecision <- function(data, alpha=0.05, nivConfianza=0.95){
       perc <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=1)
       #Bootstrap-t
       bootT <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=2)
-
-      #iterativo, necesitas que la libreria realice los dos calculos
-      resultados[[i]] <- list( perc, bootT)
+      #Percentil-simetrico
+      simt <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=7)
+      
+      resultados[[i]] <- list( perc, bootT,simt)
     }
   
-    print(resultados[[3]])
+    print(resultados)
   }
   
   if(caso==2 || caso==3){
     print(paste("hola en ", caso))
     for(i in 1:6){
+      
+      muestrasR2Boot <- remuestrasBootR[,i]
       #BCa
-      
+      #bca <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=4)
       #ABC
+      abc <- ImplementarIntervalosConfianza(data,originalR2,muestrasR2Boot,nivConfianza,tipoIntervalo=5)
+      #Ponderado ? Iterativo
       
-      #Ponderado ?
+      resultados[[i]] <- list(abc)
+      
     }
+    print(resultados)
   }
 }
 
