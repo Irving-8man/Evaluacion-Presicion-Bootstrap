@@ -820,10 +820,52 @@ print(datos_ganador)
 
 
 
+titulo <- paste0("Efica", N,".csv")
+ruta<-paste("/home/irving/Documentos/tesis/Evaluacion-Presicion-Bootstrap/Resultados", titulo, sep = "/")
+write.csv(conteos_totales, ruta, row.names = FALSE)
 
 
+# Filtrar ganadores que no tienen intervalo ganador igual a 0
+resultados_ganadores_filtrados <- subset(resultados_ganadores, IntervaloGanador != 0)
 
+# Seleccionar el mejor
+if (nrow(resultados_ganadores_filtrados) > 0) {
+  ganador_absoluto <- resultados_ganadores_filtrados[which.min(resultados_ganadores_filtrados$TamanoIntervalo),]
+} else {
+  ganador_absoluto <- data.frame(Esquema = 0, IntervaloGanador = 0, GanadorPor = 0)# Fallback en caso de que sean 0
+}
 
+# Datos del ganador
+datos_ganador <- ganador_absoluto[, c("Esquema", "IntervaloGanador", "GanadorPor")]
+print(datos_ganador)
+
+# Actualizar los conteos de la réplica actual
+conteo_replica$modelosEvaluados <- conteo_replica$modelosEvaluados + 1
+
+#Acumular el esquema ganador
+if (datos_ganador$Esquema >= 1 && datos_ganador$Esquema <= 8) {
+  conteo_replica[[paste0("esquema", datos_ganador$Esquema, "Ganador")]] <- conteo_replica[[paste0("esquema", datos_ganador$Esquema, "Ganador")]] + 1
+} else {
+  conteo_replica$sinesquemaGanador <- conteo_replica$sinesquemaGanador + 1
+}
+
+#Acumular el intervalo ganador
+if (datos_ganador$IntervaloGanador >= 1 && datos_ganador$IntervaloGanador <= 8) {
+  conteo_replica[[paste0("intervalo", datos_ganador$IntervaloGanador, "Ganador")]] <- conteo_replica[[paste0("intervalo", datos_ganador$IntervaloGanador, "Ganador")]] + 1
+} else {
+  conteo_replica$sinintervaloGanador <- conteo_replica$sinintervaloGanador + 1
+}
+
+#Acumular el tipo de ganador
+if (datos_ganador$GanadorPor == 1) {
+  conteo_replica$ganadorPorUnico <- conteo_replica$ganadorPorUnico + 1
+} else if (datos_ganador$GanadorPor == 2) {
+  conteo_replica$ganadorEmpate <- conteo_replica$ganadorEmpate + 1
+} else if (datos_ganador$GanadorPor == 3) {
+  conteo_replica$ganadorEmpateTriple <- conteo_replica$ganadorEmpateTriple + 1
+}else{
+  conteo_replica$ningunGanador<- conteo_replica$ningunGanador + 1
+}
 
 
 
