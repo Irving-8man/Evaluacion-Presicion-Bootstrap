@@ -333,15 +333,18 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
   esquemas <- 8
   
   # Resultados del analisis
+  #Matriz de conteo de resultados
   nombre_cols <- c("Replica","esquema","FrecEficIB1","FrecEficIB2","FrecEficIB3",
                    "FrecEficIB1Unico","FrecEficIB2Unico", "FrecEficIB3Unico",
                    "FrecEficIB1Emp2", "FrecEficIB2Emp2", "FrecEficIB3Emp2",
                    "FrecEficIB1Emp3", "FrecEficIB2Emp3","FrecEficIB3Emp3")
-  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
-
   conteos_totales <- matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas)
-  conteo_ceros <- matrix(0,ncol=length(nombre_cols_cer),nrow = replicas)
   colnames(conteos_totales) <- nombre_cols
+  
+  #Matriz de conteo de ceros en las replicas por esquemas
+  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
+  conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
+  colnames(conteo_ceros) <- nombre_cols_cer
   
   no_entro_ninguno <-0
   
@@ -356,6 +359,12 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
     esquema_vector <- rep(1:esquemas)
     matriz_inicial <- cbind(replica_vector, esquema_vector)
     conteo_replica[, 1:2] <- matriz_inicial
+    
+    # Vector para almacenar el conteo de ceros de la réplica actual
+    conteo_ceros_replica <- rep(0, length(nombre_cols_cer))
+    conteo_ceros_replica[1] <- replica
+    
+    
     
     # Extraer el bloque de datos para la réplica actual
     fila_inicio <- (replica - 1) * N + 1
@@ -382,7 +391,7 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
         print("procesado")
         print(R2_modelo)
         
-        
+        ############################################################################
         #Procesando resultados
         # Crear un data frame para almacenar los resultados
         resultados_df <- data.frame(
@@ -481,6 +490,7 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
         print(resultados_ganadores)
         
         
+        ############################################################################
         # Procesando los intervalos por esquema
         for (numEsquema in 1:length(resultadosInter)) {
           resultados_esquema <- resultadosInter[[numEsquema]]
@@ -523,6 +533,8 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
           }else{
             #Ningun ganador
             no_entro_ninguno <-no_entro_ninguno+1
+            # Ningún ganador, actualizar el conteo de ceros para este esquema
+            conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
           }
           
           
@@ -543,7 +555,13 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
     fila_inicio <- (replica - 1) * esquemas + 1
     fila_fin <- replica * esquemas
     conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
+    
+    # Actualizar el conteo de modelos procesados en conteo_ceros_replica
+    conteo_ceros_replica[2] <- m
+    # Agregar conteo_ceros_replica a conteo_ceros
+    conteo_ceros <- rbind(conteo_ceros, conteo_ceros_replica)
   } # Fin replicas 
   print(conteos_totales)
+  print(conteo_ceros)
   #write.csv(x = conteos_totales, file = "conteos.csv", row.names = FALSE) 
 }
