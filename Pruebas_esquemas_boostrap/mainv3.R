@@ -345,7 +345,6 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
   nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
   conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
   colnames(conteo_ceros) <- nombre_cols_cer
-  
   no_entro_ninguno <-0
   
   # Procesando las replicas
@@ -556,12 +555,12 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
     fila_fin <- replica * esquemas
     conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
     
-    # Actualizar el conteo de modelos procesados en conteo_ceros_replica
+    # Actualizar la fila correspondiente en conteo_ceros
     conteo_ceros_replica[2] <- m
-    # Agregar conteo_ceros_replica a conteo_ceros
-    conteo_ceros <- rbind(conteo_ceros, conteo_ceros_replica)
+    conteo_ceros[replica, ] <- conteo_ceros_replica
   } # Fin replicas 
   print(conteos_totales)
   print(conteo_ceros)
   #write.csv(x = conteos_totales, file = "conteos.csv", row.names = FALSE) 
+  #write.csv(x = conteo_ceros, file = "conteo_ceros.csv", row.names = FALSE) 
 }
