@@ -1,17 +1,14 @@
-#Version sin ABC
-#Tesis Regresion lineal con esquemas robustos
+#Tesis, evaluación de la precisión de un modelo con la 
+#tecnica de Regresion lineal con Bootstrap y estimadores robustos
 #Irving Geyler Cupul Uc
 
-#cargando librerias
+#Librerias
 library("robustbase")
-library("boot")
-library("bootstrap")
 library("readxl")
-
 #Función de apoyo para ponderar residuales
-#Sea residualesRob <- los residuales robustos del modelo
-#CMERob <- 
-PodResidRobu <- function(residualesRob,CMERob){
+#Sea residualesRob <- los residuales del modelo con regresión robusta
+#CMERob <- cuadrado medio del error del modleo con regresión robusta
+PodResidRobu <- function(residualesRob, CMERob){
   consPes <- 3
   n <- length(residualesRob)
   x <- abs(residualesRob)/sqrt(CMERob)
@@ -22,10 +19,11 @@ PodResidRobu <- function(residualesRob,CMERob){
   return(resRobuPonder)
 }
 
-#Función de apoyo para obtener la muestra Bootstrap de R²
+#Función de apoyo para obtener las muestras Bootstrap de R²
 #Sea y <- los observador, z <- los estimados,yAjRob <- ajustados 
 #residuales <- obtenenidos de la regresion lineal,residualesRob <- residuales robustos de la regresion lineal, 
-#residualesRP <- residuales robustos ponderados,hii<-     , n <- tamaño de la muestra de residuos, 
+#residualesRP <- residuales robustos ponderados,hii<- valor de aplacamiento del modelo con 
+#regresion simple, n <- tamaño de la muestra de residuos, 
 #B <- repeticiones Bootstrap,tipo <- sea el tipo de esquema Boostrap Robusto. 
 #1<-Wu 1, 2<-Wu 2, 3<-Wu 3, 4<-Liu 1, 5<-Liu 2, 6<-Wild
 # 7<-residuales balanceados, 8<-residuales pareados
@@ -102,8 +100,12 @@ CalcularR2Bootstrap <- function(y, z, yAjRob, residuales, residualesRob, residua
 }
 
 
-#Intervalos de confianza para las muestras Bootstrap 
-ContruirIntervBoot <- function(data,R2,muestrasR2Boot,B=100,nivConfianza=0.95,tipo){
+#Función de apoyo para construir el intervalo de confianza  la muestra de R² Bootstraps del modelo
+#Sea data <- los valores z e y del modelo, R2 <- la R² estimada del modelo, 
+#muestrasR2Boot <- la muestra de R² Bootstrap, B <- repeticiones Bootstrap, nivConfianza<- nivel de confianza,
+#tipo<- sea el tipo de intervalo de confiaza que desea construir,opciones:
+#1<- percentil, 2<-BCa
+ContruirIntervBoot <- function(data, R2, muestrasR2Boot, B=100, nivConfianza=0.95, tipo){
   intervalo <- numeric(2) 
   alpha <- 1-nivConfianza
   z <- as.numeric(data[[1]])
@@ -151,8 +153,13 @@ ContruirIntervBoot <- function(data,R2,muestrasR2Boot,B=100,nivConfianza=0.95,ti
 
 
 
-#Calcular la precisión de un módelo
-CalPrecicion <- function (data,alpha,nivConfianza,caso){
+#Función propuesta para evaluar la precisión de un modelo creando
+#intervalos de confianza con la tecnica de regresion lineal
+#con estimadores robustos y esquemas Booststrap
+#Sea data<- el modelo con las columnas z e y
+#caso <- 1 #Normalidad- homocedasticidad, 2 #No normalidad-homocedasticidad,
+#3 #Normalidad-heterocidasticidad y 4 #No normalidad-heterocidastecidad
+EvalPrecisionModel <- function (data,alpha,nivConfianza,caso){
   z <- as.numeric(data[[1]])
   y <- as.numeric(data[[2]])
   n <- length(z)
@@ -170,12 +177,12 @@ CalPrecicion <- function (data,alpha,nivConfianza,caso){
   NNVC <- 2 #No normalidad-homocedasticidad
   NNC <- 3 #Normalidad-heterocidasticidad
   NNNC <- 4 #No normalidad-heterocidastecidad 
-  #Num de remuestreos
-  numRemues <- 8
+  numRemues <- 8 #Numero de tipos de remuestreos implementados
+  valoresBootR <- matrix(0,nrow = B, ncol = numRemues)
   
-  valoresBootR <- matrix(0,nrow = B, ncol = numRemues) #todas los R2 generados por muestra 
-  #Minimos cuadrados
+  #Uso de los estimadores dependendiendo el caso
   if(NVC == caso){
+    #Minimos cuadrados
     residualesRob <- residuales
     yAjRob <- yAju
     residualesRP <- residuales
@@ -204,23 +211,16 @@ CalPrecicion <- function (data,alpha,nivConfianza,caso){
     BootR <- CalcularR2Bootstrap(y,z, yAjRob,residuales,residualesRob,residualesRP,hii,n,B,tipo=i)
     valoresBootR[, i] <- BootR
   }
-  #print(valoresBootR) #Fin de esquemas boot
-  
-  ###Empieza creacion de intervalos de confianza
   resultadosInter <- vector("list", numRemues)
   
   #Calculo de los intervalos
   for(i in 1:numRemues){
     muestrasR2Boot <- valoresBootR[,i]
-    #Percentil
     perc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=1)
-    #bca
     bca <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=2)
     resultadosInter[[i]] <- list(perc, bca)
-    #aqui ya solo se recuperan los dos resultados de intervalo
   }
   
-  #print(resultadosInter)
   return(resultadosInter)
 }
 
@@ -228,13 +228,15 @@ CalPrecicion <- function (data,alpha,nivConfianza,caso){
 ##################################################################################################
 #Procesamiento de datos y cálculo de datos de interes
 
-#Funcion para la recuperacion de muestras y sus R2 estimadas
-#Sea para el parametro modelo, 1-Precisos, 2-Imprecisos
-#Y sea para el parametro caso, 1-NVC, 2-NVD, 3-NNVC, 4-NNVD
-ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
+#Función principal para el procesamiento del archivo y/o archivos
+#con los modelos y sus replicas dado los parametros,
+#modelo<-1-Precisos, 2-Imprecisos
+#sea para el caso, 1-NVC, 2-NVD, 3-NNVC, 4-NNVD,
+#e indicando tamaño de muestra de los modelos.
+ProcesarModelsData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
   #Modificar dependiendo de la carpeta donde este alojada
   directorio <- "../Evaluacion-Presicion-Bootstrap/Modelos Simulados"
-  #Elige un modelo
+
   carp_model <- switch(modelo,
                        "Precisos" = "Precisos",
                        "Imprecisos" = "Imprecisos",
@@ -245,8 +247,6 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
                        stop("Modelo no válido"))
   ruta_model <- file.path(directorio, carp_model)
   
-  
-  #Elige un caso
   arch_caso <- c("NVC","NVD","NNVC","NNVD")
   tipo_caso <- switch(caso,{arch_caso[1]},{arch_caso[2]},{arch_caso[3]},{arch_caso[4]},stop())
   model_caso <- paste(arch_model, tipo_caso, sep = "")
@@ -254,7 +254,6 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
   
   # Recuperando los archivos de la ruta
   archivos <- sort(list.files(ruta_model_caso))
-  
   
   # Encontrar los archivos de muestra y R2 correspondientes
   encontrar_archivos <- function(num) {
@@ -271,12 +270,12 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
     }
   }
   
-  #Procesamiento de la replicas del caso 
-  replicas <- 5
+  replicas <- 5 #replicas de estudio
+  #Procesamiento de las muestras solicitadas
   for(muestra in numMuestras){
     archivos_encontrados <- encontrar_archivos(muestra)
     if (!is.null(archivos_encontrados)) {
-      CalPrecMuestrasv2(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
+      ProcesarModels(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
     } else {
       cat("No se encontró un archivo de muestra o R2 correspondiente para el tamaño de muestra:", muestra, "\n")
     }
@@ -288,24 +287,22 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
 
 
 
-#Función para implementar el calculo de las precision de las muestras
+# Función para procesar y capturar los resultados sobre la precisión de las muestras con sus I.C.
 # Dado archivos_encontrados <-  list(muestra,R2) con rutas de archivos
 # para el parametro caso, 1-NVC, 2-NVD, 3-NNVC, 4-NNVD
 # para replicas sea el número de replicas
 # con nivConfinza entre 0 - 1
 # y sea para N el tamaño de las muestras
-CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza, N, MODELO, CASO) {
+ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N, MODELO, CASO) {
   archivo_muestra <- archivos_encontrados$muestra
   archivo_R2 <- archivos_encontrados$R2
   library(readxl)
-  
-  # Leer los archivos .xlsx considerando que tienen cabecera
   data_muestra <- read_excel(archivo_muestra, col_names = TRUE)
   data_R2 <- read_excel(archivo_R2, col_names = TRUE)
   
   block <- 1000
   cols_por_model <- 2
-  limit_model <- 3
+  limit_model <- 3 #modelos a procesar
   esquemas <- 8
   
   # Resultados del analisis
@@ -322,6 +319,10 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
   colnames(conteo_ceros) <- nombre_cols_cer
   no_entro_ninguno <-0
   
+  #Nombre archivos
+  nombre_archivo_conteos <- paste("resultados_conteos__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
+  nombre_archivo_ceros <- paste("resultados_ceros__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
+
   # Procesando las replicas
   for (replica in 1:replicas) {
     print(paste("Replica #", replica))
@@ -354,8 +355,8 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
         model_end <- min(j + cols_por_model - 1, ncol(block_caso))
         modeloActual <- block_caso[, j:model_end]
         R2_modelo <- R2_block[Rmod+1]
-        Rmod <- Rmod+1
-        resultadosInter <- CalPrecicion(modeloActual, alpha, nivConfianza, caso)
+        Rmod <- Rmod + 1
+        resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)
         
         # Procesando los intervalos por esquema
         for (numEsquema in 1:length(resultadosInter)) {
@@ -386,37 +387,26 @@ CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza
             no_entro_ninguno <- no_entro_ninguno + 1
             conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
           }
-          
         }#Fin de conteo
         
         m <- m + 1
         if (m %% limit_model == 0) {
           print(paste("Procesado", m, "modelos de replicas:", replica))
         }
-        
         if (m == limit_model) {
           break
         }
       } # Fin procesando modelo
-      
-      if (m == limit_model) {
-        break
-      }
     } # Fin proceso bloques de 1000
     
-    # Agregar conteo_replica a conteos_totales
     fila_inicio <- (replica - 1) * esquemas + 1
     fila_fin <- replica * esquemas
     conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
-    # Actualizar la fila correspondiente en conteo_ceros
     conteo_ceros_replica[2] <- m
     conteo_ceros[replica, ] <- conteo_ceros_replica
     # Guardar resultados tras procesar cada réplica
-    nombre_archivo_conteos <- paste("resultados_conteos__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
-    nombre_archivo_ceros <- paste("resultados_ceros__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
     #write.csv(x = conteos_totales, file = nombre_archivo_conteos, row.names = FALSE)
     #write.csv(x = conteo_ceros, file = nombre_archivo_ceros, row.names = FALSE)
-    
   }
   cat("Fin de cálculos")
 }
