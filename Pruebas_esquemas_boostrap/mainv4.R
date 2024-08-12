@@ -6,7 +6,7 @@
 library("robustbase")
 library("readxl")
 #Función de apoyo para ponderar residuales
-#Sea residualesRob <- los residuales del modelo con regresión robusta
+#Sea residualesRob <- residuales del modelo con regresión robusta
 #CMERob <- cuadrado medio del error del modleo con regresión robusta
 PodResidRobu <- function(residualesRob, CMERob){
   consPes <- 3
@@ -19,9 +19,10 @@ PodResidRobu <- function(residualesRob, CMERob){
   return(resRobuPonder)
 }
 
+
 #Función de apoyo para obtener las muestras Bootstrap de R²
-#Sea y <- los observador, z <- los estimados,yAjRob <- ajustados 
-#residuales <- obtenenidos de la regresion lineal,residualesRob <- residuales robustos de la regresion lineal, 
+#Sea y <- los observador, z <- los estimados,yAjRob <- y ajustados 
+#residuales <- residuales por regresion lineal,residualesRob <- residuales por regresion lineal robusta, 
 #residualesRP <- residuales robustos ponderados,hii<- valor de aplacamiento del modelo con 
 #regresion simple, n <- tamaño de la muestra de residuos, 
 #B <- repeticiones Bootstrap,tipo <- sea el tipo de esquema Boostrap Robusto. 
@@ -152,18 +153,17 @@ ContruirIntervBoot <- function(data, R2, muestrasR2Boot, B=100, nivConfianza=0.9
 }
 
 
-
 #Función propuesta para evaluar la precisión de un modelo creando
 #intervalos de confianza con la tecnica de regresion lineal
 #con estimadores robustos y esquemas Booststrap
 #Sea data<- el modelo con las columnas z e y
 #caso <- 1 #Normalidad- homocedasticidad, 2 #No normalidad-homocedasticidad,
 #3 #Normalidad-heterocidasticidad y 4 #No normalidad-heterocidastecidad
-EvalPrecisionModel <- function (data,alpha,nivConfianza,caso){
+EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
   z <- as.numeric(data[[1]])
   y <- as.numeric(data[[2]])
   n <- length(z)
-  B <- 100 #Remuestras bootstrap
+  B <- 1000 #Remuestras bootstrap
   
   #Regresion lineal simple
   modeloLineal <- lm(y~z)
@@ -188,7 +188,7 @@ EvalPrecisionModel <- function (data,alpha,nivConfianza,caso){
     residualesRP <- residuales
     
   }else{
-    # Estimador robusto MM  
+    # Uso de estimador robusto MM  
     modeloLinealRob <- lmrob(y ~ z, method = "MM")
     residualesRob <- modeloLinealRob$residuals
     yAjRob <- modeloLinealRob$fitted.values
@@ -206,14 +206,14 @@ EvalPrecisionModel <- function (data,alpha,nivConfianza,caso){
       residualesRP <- PodResidRobu (residualesRob,CMERob)
     }
   }
-  
+  #Procesamiento de los residuales en distintos esquemas
   for(i in 1:numRemues){
     BootR <- CalcularR2Bootstrap(y,z, yAjRob,residuales,residualesRob,residualesRP,hii,n,B,tipo=i)
     valoresBootR[, i] <- BootR
   }
   resultadosInter <- vector("list", numRemues)
   
-  #Calculo de los intervalos
+  #Cálculo de los intervalos para el R²
   for(i in 1:numRemues){
     muestrasR2Boot <- valoresBootR[,i]
     perc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=1)
@@ -233,7 +233,7 @@ EvalPrecisionModel <- function (data,alpha,nivConfianza,caso){
 #modelo<-1-Precisos, 2-Imprecisos
 #sea para el caso, 1-NVC, 2-NVD, 3-NNVC, 4-NNVD,
 #e indicando tamaño de muestra de los modelos.
-ProcesarModelsData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
+ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) ){
   #Modificar dependiendo de la carpeta donde este alojada
   directorio <- "../Evaluacion-Presicion-Bootstrap/Modelos Simulados"
 
@@ -246,7 +246,6 @@ ProcesarModelsData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
                        "Imprecisos" = "EI",
                        stop("Modelo no válido"))
   ruta_model <- file.path(directorio, carp_model)
-  
   arch_caso <- c("NVC","NVD","NNVC","NNVD")
   tipo_caso <- switch(caso,{arch_caso[1]},{arch_caso[2]},{arch_caso[3]},{arch_caso[4]},stop())
   model_caso <- paste(arch_model, tipo_caso, sep = "")
@@ -302,7 +301,7 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
   
   block <- 1000
   cols_por_model <- 2
-  limit_model <- 3 #modelos a procesar
+  limit_model <- 500 #modelos a procesar
   esquemas <- 8
   
   # Resultados del analisis
@@ -328,7 +327,6 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
     print(paste("Replica #", replica))
     m <- 0
     
-    # Vectores que contienen los datos por defecto
     conteo_replica <- matrix(0, nrow = 8, ncol = length(nombre_cols))
     replica_vector <- rep(replica, each = esquemas)
     esquema_vector <- rep(1:esquemas)
@@ -338,23 +336,28 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
     conteo_ceros_replica <- numeric(length(nombre_cols_cer))
     conteo_ceros_replica[1] <- replica
     
-    # Extraer el bloque de datos para la réplica actual
+    #Bloque de datos para la réplica actual
     fila_inicio <- (replica - 1) * N + 1
     fila_fin <- replica * N
     replica_data <- data_muestra[fila_inicio:fila_fin, ]
-    R2_replica <- data_R2[replica, ]
+    R2_replica <- as.numeric(data_R2[replica, ])##
+    
     
     # Procesar cada bloque de 1000 columnas
     for (i in seq(1, ncol(replica_data), by = block)) {
       block_end <- min(i + block - 1, ncol(replica_data))
       block_caso <- replica_data[, i:block_end]
-      R2_block <- R2_replica[i:500]
+      R2_block <- as.numeric(R2_replica[i:500])
+      
       Rmod <- 0
       
       for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
         model_end <- min(j + cols_por_model - 1, ncol(block_caso))
         modeloActual <- block_caso[, j:model_end]
         R2_modelo <- R2_block[Rmod+1]
+        if (is.na(R2_modelo)) {
+          stop("El valor de R2_modelo es NA.")
+        }
         Rmod <- Rmod + 1
         resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)
         
@@ -365,14 +368,25 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
           intervalos_ganadores <- list()
           for (numIntervalo in 1:length(resultados_esquema)) {
             intervalo <- resultados_esquema[[numIntervalo]]
-            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
             
-            if (R2_intervalo == 1) {
-              if (numIntervalo == 1) conteo_replica[numEsquema,3] <- conteo_replica[numEsquema,3] + 1
-              if (numIntervalo == 2) conteo_replica[numEsquema,4] <- conteo_replica[numEsquema,4] + 1
-              
-              intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
+            if (!any(is.na(intervalo)) && length(intervalo) == 2) {
+              if (!is.na(R2_modelo)) {
+                R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+                if (R2_intervalo == 1) {
+                  if (numIntervalo == 1) conteo_replica[numEsquema, 3] <- conteo_replica[numEsquema, 3] + 1
+                  if (numIntervalo == 2) conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1
+                  intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
+                }
+              } else {
+                warning(paste("Valor NA en R2_modelo:", R2_modelo, "en esquema", numEsquema, "intervalo", numIntervalo))
+              }
+            } else {
+              warning(paste("Intervalo inválido en esquema", numEsquema, "intervalo", numIntervalo, 
+                            "Intervalo:", paste(intervalo, collapse = ","), 
+                            "con R2_modelo:", R2_modelo))
             }
+            
+             
           }
           
           # Determinar los ganadores
@@ -390,7 +404,7 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
         }#Fin de conteo
         
         m <- m + 1
-        if (m %% limit_model == 0) {
+        if (m %% 10 == 0) {
           print(paste("Procesado", m, "modelos de replicas:", replica))
         }
         if (m == limit_model) {
@@ -405,8 +419,38 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
     conteo_ceros_replica[2] <- m
     conteo_ceros[replica, ] <- conteo_ceros_replica
     # Guardar resultados tras procesar cada réplica
-    #write.csv(x = conteos_totales, file = nombre_archivo_conteos, row.names = FALSE)
-    #write.csv(x = conteo_ceros, file = nombre_archivo_ceros, row.names = FALSE)
+    write.csv(x = conteos_totales, file = nombre_archivo_conteos, row.names = FALSE)
+    write.csv(x = conteo_ceros, file = nombre_archivo_ceros, row.names = FALSE)
   }
   cat("Fin de cálculos")
 }
+
+#################################################################################################
+#Procesado casos de prueba
+
+# • 10 ← "Preciso"/"NNVD"
+tiempo_estimado <- system.time(ProcesarModelsData(1,4,10))
+print(tiempo_estimado)
+
+# • 15 ← "Impreciso"/"NVD"
+tiempo_estimado <- system.time(ProcesarModelsData(2,2,15))
+print(tiempo_estimado)
+
+# • 20 ← "Preciso"/"NVD"
+tiempo_estimado <- system.time(ProcesarModelsData(1,2,20))
+print(tiempo_estimado)
+
+# • 25 ← "Impreciso"/"NNVC"
+tiempo_estimado <- system.time(ProcesarModelsData(2,3,25))
+print(tiempo_estimado)
+
+# • 30 ← "Impreciso"/"NVC"
+tiempo_estimado <- system.time(ProcesarModelsData(2,1,30))
+print(tiempo_estimado)
+
+# • 35 ← "Preciso"/"NVD"
+tiempo_estimado <- system.time(ProcesarModelsData(1,2,35))
+print(tiempo_estimado)
+
+
+
