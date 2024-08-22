@@ -274,7 +274,7 @@ ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) 
   for(muestra in numMuestras){
     archivos_encontrados <- encontrar_archivos(muestra)
     if (!is.null(archivos_encontrados)) {
-      ProcesarModels(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
+      ProcesarModelsEx(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
     } else {
       cat("No se encontró un archivo de muestra o R2 correspondiente para el tamaño de muestra:", muestra, "\n")
     }
@@ -424,6 +424,141 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
   }
   cat("Fin de cálculos")
 }
+
+
+
+ProcesarModelsEx <- function(archivos_encontrados, caso, replicas, nivConfianza, N, MODELO, CASO) {
+  library(openxlsx)
+  library(readxl)
+  archivo_muestra <- archivos_encontrados$muestra
+  archivo_R2 <- archivos_encontrados$R2
+  data_muestra <- read_excel(archivo_muestra, col_names = TRUE)
+  data_R2 <- read_excel(archivo_R2, col_names = TRUE)
+  
+  block <- 1000
+  cols_por_model <- 2
+  limit_model <- 500 #modelos a procesar
+  esquemas <- 8
+  
+  nombre_cols <- c("Replica","esquema","FrecEficIB1","FrecEficIB2",
+                   "FrecEficIB1Unico","FrecEficIB2Unico",
+                   "FrecEficIB1Emp2", "FrecEficIB2Emp2")
+  conteos_totales <- matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas)
+  colnames(conteos_totales) <- nombre_cols
+  
+  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
+  conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
+  colnames(conteo_ceros) <- nombre_cols_cer
+  no_entro_ninguno <-0
+  
+  nombre_archivo_conteos <- paste("resultados_conteos__", MODELO, "__", CASO, "__N", N, ".xlsx", sep = "")
+  nombre_archivo_ceros <- paste("resultados_ceros__", MODELO, "__", CASO, "__N", N, ".xlsx", sep = "")
+  
+  wb_conteos <- createWorkbook()
+  addWorksheet(wb_conteos, "Conteos")
+  
+  wb_ceros <- createWorkbook()
+  addWorksheet(wb_ceros, "Ceros")
+  
+  for (replica in 1:replicas) {
+    print(paste("Replica #", replica))
+    m <- 0
+    
+    conteo_replica <- matrix(0, nrow = 8, ncol = length(nombre_cols))
+    replica_vector <- rep(replica, each = esquemas)
+    esquema_vector <- rep(1:esquemas)
+    matriz_inicial <- cbind(replica_vector, esquema_vector)
+    conteo_replica[, 1:2] <- matriz_inicial
+    
+    conteo_ceros_replica <- numeric(length(nombre_cols_cer))
+    conteo_ceros_replica[1] <- replica
+    
+    fila_inicio <- (replica - 1) * N + 1
+    fila_fin <- replica * N
+    replica_data <- data_muestra[fila_inicio:fila_fin, ]
+    R2_replica <- as.numeric(data_R2[replica, ])
+    
+    for (i in seq(1, ncol(replica_data), by = block)) {
+      block_end <- min(i + block - 1, ncol(replica_data))
+      block_caso <- replica_data[, i:block_end]
+      R2_block <- as.numeric(R2_replica[i:500])
+      
+      Rmod <- 0
+      
+      for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
+        model_end <- min(j + cols_por_model - 1, ncol(block_caso))
+        modeloActual <- block_caso[, j:model_end]
+        R2_modelo <- R2_block[Rmod+1]
+        if (is.na(R2_modelo)) {
+          stop("El valor de R2_modelo es NA.")
+        }
+        Rmod <- Rmod + 1
+        resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)
+        
+        for (numEsquema in 1:length(resultadosInter)) {
+          resultados_esquema <- resultadosInter[[numEsquema]]
+          
+          intervalos_ganadores <- list()
+          for (numIntervalo in 1:length(resultados_esquema)) {
+            intervalo <- resultados_esquema[[numIntervalo]]
+            
+            if (!any(is.na(intervalo)) && length(intervalo) == 2) {
+              if (!is.na(R2_modelo)) {
+                R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+                if (R2_intervalo == 1) {
+                  if (numIntervalo == 1) conteo_replica[numEsquema, 3] <- conteo_replica[numEsquema, 3] + 1
+                  if (numIntervalo == 2) conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1
+                  intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
+                }
+              } else {
+                warning(paste("Valor NA en R2_modelo:", R2_modelo, "en esquema", numEsquema, "intervalo", numIntervalo))
+              }
+            } else {
+              warning(paste("Intervalo inválido en esquema", numEsquema, "intervalo", numIntervalo, 
+                            "Intervalo:", paste(intervalo, collapse = ","), 
+                            "con R2_modelo:", R2_modelo))
+            }
+          }
+          
+          if (length(intervalos_ganadores) == 1) {
+            if (intervalos_ganadores[[1]]$Intervalo == 1) conteo_replica[numEsquema,5] <- conteo_replica[numEsquema,5] + 1
+            if (intervalos_ganadores[[1]]$Intervalo == 2) conteo_replica[numEsquema,6] <- conteo_replica[numEsquema,6] + 1
+          } else if (length(intervalos_ganadores) == 2) {
+            mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
+            if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 7] <- conteo_replica[numEsquema, 7] + 1
+            if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 8] <- conteo_replica[numEsquema, 8] + 1
+          } else {
+            no_entro_ninguno <- no_entro_ninguno + 1
+            conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
+          }
+        }#Fin de conteo
+        
+        m <- m + 1
+        if (m %% 10 == 0) {
+          print(paste("Procesado", m, "modelos de replicas:", replica))
+        }
+        if (m == limit_model) {
+          break
+        }
+      } # Fin procesando modelo
+    } # Fin proceso bloques de 1000
+    
+    fila_inicio <- (replica - 1) * esquemas + 1
+    fila_fin <- replica * esquemas
+    conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
+    conteo_ceros_replica[2] <- m
+    conteo_ceros[replica, ] <- conteo_ceros_replica
+    
+    writeData(wb_conteos, "Conteos", conteos_totales, startCol = 1, startRow = 1, rowNames = FALSE)
+    writeData(wb_ceros, "Ceros", conteo_ceros, startCol = 1, startRow = 1, rowNames = FALSE)
+    
+    saveWorkbook(wb_conteos, nombre_archivo_conteos, overwrite = TRUE)
+    saveWorkbook(wb_ceros, nombre_archivo_ceros, overwrite = TRUE)
+  }
+  cat("Fin de cálculos")
+}
+
+
 
 #################################################################################################
 #Procesado casos de prueba
