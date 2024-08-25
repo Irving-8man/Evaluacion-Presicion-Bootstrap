@@ -274,7 +274,7 @@ ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) 
   for(muestra in numMuestras){
     archivos_encontrados <- encontrar_archivos(muestra)
     if (!is.null(archivos_encontrados)) {
-      ProcesarModelsEx(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
+      ProcesarModels(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra,MODELO=arch_model, CASO=tipo_caso)
     } else {
       cat("No se encontró un archivo de muestra o R2 correspondiente para el tamaño de muestra:", muestra, "\n")
     }
@@ -284,8 +284,6 @@ ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) 
 }
 
 
-
-
 # Función para procesar y capturar los resultados sobre la precisión de las muestras con sus I.C.
 # Dado archivos_encontrados <-  list(muestra,R2) con rutas de archivos
 # para el parametro caso, 1-NVC, 2-NVD, 3-NNVC, 4-NNVD
@@ -293,141 +291,6 @@ ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) 
 # con nivConfinza entre 0 - 1
 # y sea para N el tamaño de las muestras
 ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N, MODELO, CASO) {
-  archivo_muestra <- archivos_encontrados$muestra
-  archivo_R2 <- archivos_encontrados$R2
-  library(readxl)
-  data_muestra <- read_excel(archivo_muestra, col_names = TRUE)
-  data_R2 <- read_excel(archivo_R2, col_names = TRUE)
-  
-  block <- 1000
-  cols_por_model <- 2
-  limit_model <- 500 #modelos a procesar
-  esquemas <- 8
-  
-  # Resultados del analisis
-  #Matriz de conteo de resultados
-  nombre_cols <- c("Replica","esquema","FrecEficIB1","FrecEficIB2",
-                   "FrecEficIB1Unico","FrecEficIB2Unico",
-                   "FrecEficIB1Emp2", "FrecEficIB2Emp2")
-  conteos_totales <- matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas)
-  colnames(conteos_totales) <- nombre_cols
-  
-  #Matriz de conteo de ceros en las replicas por esquemas
-  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
-  conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
-  colnames(conteo_ceros) <- nombre_cols_cer
-  no_entro_ninguno <-0
-  
-  #Nombre archivos
-  nombre_archivo_conteos <- paste("resultados_conteos__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
-  nombre_archivo_ceros <- paste("resultados_ceros__", MODELO, "__", CASO, "__N", N, ".csv", sep = "")
-
-  # Procesando las replicas
-  for (replica in 1:replicas) {
-    print(paste("Replica #", replica))
-    m <- 0
-    
-    conteo_replica <- matrix(0, nrow = 8, ncol = length(nombre_cols))
-    replica_vector <- rep(replica, each = esquemas)
-    esquema_vector <- rep(1:esquemas)
-    matriz_inicial <- cbind(replica_vector, esquema_vector)
-    conteo_replica[, 1:2] <- matriz_inicial
-    # Vector para almacenar el conteo de ceros de la réplica actual
-    conteo_ceros_replica <- numeric(length(nombre_cols_cer))
-    conteo_ceros_replica[1] <- replica
-    
-    #Bloque de datos para la réplica actual
-    fila_inicio <- (replica - 1) * N + 1
-    fila_fin <- replica * N
-    replica_data <- data_muestra[fila_inicio:fila_fin, ]
-    R2_replica <- as.numeric(data_R2[replica, ])##
-    
-    
-    # Procesar cada bloque de 1000 columnas
-    for (i in seq(1, ncol(replica_data), by = block)) {
-      block_end <- min(i + block - 1, ncol(replica_data))
-      block_caso <- replica_data[, i:block_end]
-      R2_block <- as.numeric(R2_replica[i:500])
-      
-      Rmod <- 0
-      
-      for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
-        model_end <- min(j + cols_por_model - 1, ncol(block_caso))
-        modeloActual <- block_caso[, j:model_end]
-        R2_modelo <- R2_block[Rmod+1]
-        if (is.na(R2_modelo)) {
-          stop("El valor de R2_modelo es NA.")
-        }
-        Rmod <- Rmod + 1
-        resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)
-        
-        # Procesando los intervalos por esquema
-        for (numEsquema in 1:length(resultadosInter)) {
-          resultados_esquema <- resultadosInter[[numEsquema]]
-          
-          intervalos_ganadores <- list()
-          for (numIntervalo in 1:length(resultados_esquema)) {
-            intervalo <- resultados_esquema[[numIntervalo]]
-            
-            if (!any(is.na(intervalo)) && length(intervalo) == 2) {
-              if (!is.na(R2_modelo)) {
-                R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
-                if (R2_intervalo == 1) {
-                  if (numIntervalo == 1) conteo_replica[numEsquema, 3] <- conteo_replica[numEsquema, 3] + 1
-                  if (numIntervalo == 2) conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1
-                  intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
-                }
-              } else {
-                warning(paste("Valor NA en R2_modelo:", R2_modelo, "en esquema", numEsquema, "intervalo", numIntervalo))
-              }
-            } else {
-              warning(paste("Intervalo inválido en esquema", numEsquema, "intervalo", numIntervalo, 
-                            "Intervalo:", paste(intervalo, collapse = ","), 
-                            "con R2_modelo:", R2_modelo))
-            }
-            
-             
-          }
-          
-          # Determinar los ganadores
-          if (length(intervalos_ganadores) == 1) {
-            if (intervalos_ganadores[[1]]$Intervalo == 1) conteo_replica[numEsquema,5] <- conteo_replica[numEsquema,5] + 1
-            if (intervalos_ganadores[[1]]$Intervalo == 2) conteo_replica[numEsquema,6] <- conteo_replica[numEsquema,6] + 1
-          } else if (length(intervalos_ganadores) == 2) {
-            mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
-            if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 7] <- conteo_replica[numEsquema, 7] + 1
-            if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 8] <- conteo_replica[numEsquema, 8] + 1
-          } else {
-            no_entro_ninguno <- no_entro_ninguno + 1
-            conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
-          }
-        }#Fin de conteo
-        
-        m <- m + 1
-        if (m %% 10 == 0) {
-          print(paste("Procesado", m, "modelos de replicas:", replica))
-        }
-        if (m == limit_model) {
-          break
-        }
-      } # Fin procesando modelo
-    } # Fin proceso bloques de 1000
-    
-    fila_inicio <- (replica - 1) * esquemas + 1
-    fila_fin <- replica * esquemas
-    conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
-    conteo_ceros_replica[2] <- m
-    conteo_ceros[replica, ] <- conteo_ceros_replica
-    # Guardar resultados tras procesar cada réplica
-    write.csv(x = conteos_totales, file = nombre_archivo_conteos, row.names = FALSE)
-    write.csv(x = conteo_ceros, file = nombre_archivo_ceros, row.names = FALSE)
-  }
-  cat("Fin de cálculos")
-}
-
-
-
-ProcesarModelsEx <- function(archivos_encontrados, caso, replicas, nivConfianza, N, MODELO, CASO) {
   library(openxlsx)
   library(readxl)
   archivo_muestra <- archivos_encontrados$muestra
@@ -534,7 +397,7 @@ ProcesarModelsEx <- function(archivos_encontrados, caso, replicas, nivConfianza,
         }#Fin de conteo
         
         m <- m + 1
-        if (m %% 10 == 0) {
+        if (m %% 50 == 0) {
           print(paste("Procesado", m, "modelos de replicas:", replica))
         }
         if (m == limit_model) {
@@ -559,33 +422,69 @@ ProcesarModelsEx <- function(archivos_encontrados, caso, replicas, nivConfianza,
 }
 
 
+#Funcion para guardar el tiempo de procesado y warnings del caso
+ProcesarMCT <- function(func, modelo, caso, tamano) {
+  warnings_capturados <- character(0)
+  
+  # Función para capturar las advertencias
+  captura_warnings <- function(warning) {
+    warnings_capturados <<- c(warnings_capturados, conditionMessage(warning))
+    invokeRestart("muffleWarning")
+  }
+  
+  inicio <- Sys.time()
+  # Medir el tiempo de ejecución y capturar warnings
+  tiempo_estimado <- withCallingHandlers({
+    system.time(func(modelo, caso, tamano))
+  }, warning = captura_warnings)
+  fin <- Sys.time()
+  
+  #Recopilación de información
+  mensaje <- paste(
+    "Función iniciada en:", inicio, "\n",
+    "Función finalizada en:", fin, "\n",
+    "Tiempo estimado (en segundos):\n",
+    "  Usuario:", tiempo_estimado[1], "\n",
+    "  Sistema:", tiempo_estimado[2], "\n",
+    "  Total:", tiempo_estimado[3], "\n",
+    if (length(warnings_capturados) > 0) {
+      paste("Warnings capturados:\n", paste(warnings_capturados, collapse = "\n"))
+    } else {
+      "No se capturaron warnings.\n"
+    }
+  )
+
+  tipo_model <- switch(modelo,
+                       "Precisos" = "EP",
+                       "Imprecisos" = "EI",
+                       stop("Modelo no válido"))
+  abre_caso <- c("NVC","NVD","NNVC","NNVD")
+  tipo_caso <- switch(caso,{abre_caso[1]},{abre_caso[2]},{abre_caso[3]},{abre_caso[4]},stop())
+  nombre_archivo_logs <- paste("tiempo_warnings__", tipo_model, "__", tipo_caso, "__N", tamano, ".txt", sep = "")
+  write(mensaje, file = nombre_archivo_logs)
+}
+
 
 #################################################################################################
 #Procesado casos de prueba
 
-# • 10 ← "Preciso"/"NNVD"
-tiempo_estimado <- system.time(ProcesarModelsData(1,4,10))
-print(tiempo_estimado)
+# • 10 ← "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData, 1, 1, 10)
 
-# • 15 ← "Impreciso"/"NVD"
-tiempo_estimado <- system.time(ProcesarModelsData(2,2,15))
-print(tiempo_estimado)
+# • 15 ←  "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData,1,1,15)
 
-# • 20 ← "Preciso"/"NVD"
-tiempo_estimado <- system.time(ProcesarModelsData(1,2,20))
-print(tiempo_estimado)
+# • 20 ←  "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData,1,1,20)
 
-# • 25 ← "Impreciso"/"NNVC"
-tiempo_estimado <- system.time(ProcesarModelsData(2,3,25))
-print(tiempo_estimado)
+# • 25 ←  "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData,1,1,25)
 
-# • 30 ← "Impreciso"/"NVC"
-tiempo_estimado <- system.time(ProcesarModelsData(2,1,30))
-print(tiempo_estimado)
+# • 30 ←  "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData,1,1,30)
 
-# • 35 ← "Preciso"/"NVD"
-tiempo_estimado <- system.time(ProcesarModelsData(1,2,35))
-print(tiempo_estimado)
+# • 35 ←  "Preciso"/"NVC"
+ProcesarMCT(ProcesarModelsData,1,1,35)
 
 
 
