@@ -1,0 +1,8 @@
+Función iniciada en: 2024-08-24 19:22:35.749319 
+ Función finalizada en: 2024-08-24 19:23:45.247359 
+ Tiempo estimado (en segundos):
+   Usuario: 67.323 
+   Sistema: 0.186 
+   Total: 68.9829999999997 
+ No se capturaron warnings.
+

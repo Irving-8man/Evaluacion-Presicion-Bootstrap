@@ -26,8 +26,8 @@ PodResidRobu <- function(residualesRob, CMERob){
 #residualesRP <- residuales robustos ponderados,hii<- valor de aplacamiento del modelo con 
 #regresion simple, n <- tamaño de la muestra de residuos, 
 #B <- repeticiones Bootstrap,tipo <- sea el tipo de esquema Boostrap Robusto. 
-#1<-Wu 1, 2<-Wu 2, 3<-Wu 3, 4<-Liu 1, 5<-Liu 2, 6<-Wild
-# 7<-residuales balanceados, 8<-residuales pareados
+#1<-Wu 1, 2<-Wu 2, 3<-Wu 3, 4<-Liu 1, 5<-Liu 2, 6<-Robusta
+# 7<-residuales balanceados, 8<- pareado balanceado
 CalcularR2Bootstrap <- function(y, z, yAjRob, residuales, residualesRob, residualesRP, hii, n, B, tipo) {
   sqrt_hii <- sqrt(1 - hii)
   RsBoot <- numeric(B)
@@ -38,6 +38,7 @@ CalcularR2Bootstrap <- function(y, z, yAjRob, residuales, residualesRob, residua
   }
   
   for (i in 1:B) {
+    
     residualBT <- switch(
       tipo,
       {
@@ -69,7 +70,7 @@ CalcularR2Bootstrap <- function(y, z, yAjRob, residuales, residualesRob, residua
         (tt * residualesRP) / sqrt_hii
       },
       {
-        sample(residualesRob, replace = TRUE)
+        sample(residualesRob, replace = TRUE)#Considerar de nuevo
       },
       {
         posI=(i-1)*n+1
@@ -157,13 +158,13 @@ ContruirIntervBoot <- function(data, R2, muestrasR2Boot, B=100, nivConfianza=0.9
 #intervalos de confianza con la tecnica de regresion lineal
 #con estimadores robustos y esquemas Booststrap
 #Sea data<- el modelo con las columnas z e y
-#caso <- 1 #Normalidad- homocedasticidad, 2 #No normalidad-homocedasticidad,
-#3 #Normalidad-heterocidasticidad y 4 #No normalidad-heterocidastecidad
+#caso <- 1 #Normalidad- homocedasticidad, 2 #Normalidad-heterocidasticidad,
+#3 #No normalidad-homocedasticidad y 4 #No normalidad-heterocidastecidad 
 EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
   z <- as.numeric(data[[1]])
   y <- as.numeric(data[[2]])
   n <- length(z)
-  B <- 1000 #Remuestras bootstrap
+  B <- 100 #Remuestras bootstrap
   
   #Regresion lineal simple
   modeloLineal <- lm(y~z)
@@ -172,13 +173,14 @@ EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
   hii <- hatvalues(modeloLineal)
   yAju <- fitted(modeloLineal)
   
-  #Casos 
+  #Casos
   NVC <- 1 #Normalidad- homocedasticidad
-  NNVC <- 2 #No normalidad-homocedasticidad
-  NNC <- 3 #Normalidad-heterocidasticidad
-  NNNC <- 4 #No normalidad-heterocidastecidad 
+  NVD <- 2 #Normalidad-heterocidasticidad
+  NNVC <- 3 #No normalidad-homocedasticidad
+  NNVD <- 4 #No normalidad-heterocidastecidad 
   numRemues <- 8 #Numero de tipos de remuestreos implementados
   valoresBootR <- matrix(0,nrow = B, ncol = numRemues)
+  
   
   #Uso de los estimadores dependendiendo el caso
   if(NVC == caso){
@@ -193,14 +195,14 @@ EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
     residualesRob <- modeloLinealRob$residuals
     yAjRob <- modeloLinealRob$fitted.values
     
-    #Segundo caso, no cumple normalidad
-    if( NNVC==caso){
+    #Segundo caso,no cumple normalidad, si varianza
+    if(NNVC==caso){
       # Residuales robustos sin ponderacion
       residualesRP <- residualesRob
     }
     
     #Tercer caso, no hay homocedasticidad
-    if((NNNC==caso) || (NNC==caso)){
+    if((NNVD==caso) || (NVD==caso)){
       # Residuales robustos con ponderacion
       CMERob <- modeloLinealRob$scale**2
       residualesRP <- PodResidRobu (residualesRob,CMERob)
@@ -269,7 +271,7 @@ ProcesarModelsData <- function(modelo, caso, numMuestras = c(10,15,20,25,30,35) 
     }
   }
   
-  replicas <- 5 #replicas de estudio
+  replicas <- 1 #replicas de estudio
   #Procesamiento de las muestras solicitadas
   for(muestra in numMuestras){
     archivos_encontrados <- encontrar_archivos(muestra)
@@ -300,124 +302,153 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
   
   block <- 1000
   cols_por_model <- 2
-  limit_model <- 500 #modelos a procesar
+  limit_model <- 8 #modelos a procesar
   esquemas <- 8
   
-  nombre_cols <- c("Replica","esquema","FrecEficIB1","FrecEficIB2",
+  #Tablas de conteos
+  nombre_cols <- c("Replica","Esquema", "NumMod", "NumModEfic", "FrecEficIB1","FrecEficIB2",
                    "FrecEficIB1Unico","FrecEficIB2Unico",
-                   "FrecEficIB1Emp2", "FrecEficIB2Emp2")
+                   "FrecEficIB1Emp2", "FrecEficIB2Emp2","NingunGanador")
   conteos_totales <- matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas)
   colnames(conteos_totales) <- nombre_cols
+
+  #Tabla de eficiencia
+  nombre_cols_efi <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
+  conteo_efi <- matrix(ncol=length(nombre_cols_efi),nrow = replicas)
+  colnames(conteo_efi) <- nombre_cols_efi
   
-  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
-  conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
-  colnames(conteo_ceros) <- nombre_cols_cer
-  no_entro_ninguno <-0
+  nombre_archivo_conteos <- paste(MODELO, "__", CASO, "__N", N, "__resultados_conteo__", ".xlsx", sep = "")
+  nombre_archivo_efi <- paste(MODELO, "__", CASO, "__N", N,"__resultados_eficiencia__", ".xlsx", sep = "")
   
-  nombre_archivo_conteos <- paste("resultados_conteos__", MODELO, "__", CASO, "__N", N, ".xlsx", sep = "")
-  nombre_archivo_ceros <- paste("resultados_ceros__", MODELO, "__", CASO, "__N", N, ".xlsx", sep = "")
-  
+  #Creando libros de excel
   wb_conteos <- createWorkbook()
   addWorksheet(wb_conteos, "Conteos")
-  
-  wb_ceros <- createWorkbook()
-  addWorksheet(wb_ceros, "Ceros")
+  wb_eficiencia <- createWorkbook()
+  addWorksheet(wb_eficiencia, "Eficiencia")
   
   for (replica in 1:replicas) {
     print(paste("Replica #", replica))
-    m <- 0
-    
+    num_m <- 0 #num de modelos
+    #Conteos por replica
     conteo_replica <- matrix(0, nrow = 8, ncol = length(nombre_cols))
-    replica_vector <- rep(replica, each = esquemas)
-    esquema_vector <- rep(1:esquemas)
-    matriz_inicial <- cbind(replica_vector, esquema_vector)
-    conteo_replica[, 1:2] <- matriz_inicial
-    
-    conteo_ceros_replica <- numeric(length(nombre_cols_cer))
-    conteo_ceros_replica[1] <- replica
-    
+    replica_vector <- rep(replica, each = esquemas)#vector de ocho 1
+    esquema_vector <- rep(1:esquemas)#vector de 1-8
+    numMode_vector <- rep(limit_model, each = esquemas)#dado de modelos calculados
+    #Matriz de datos iniciales
+    matriz_inicial <- cbind(replica_vector, esquema_vector,numMode_vector)
+    conteo_replica[, 1:3] <- matriz_inicial
+    #Eficiencia por replica
+    conteo_efi_replica <- numeric(length(nombre_cols_efi))
+    conteo_efi_replica[1] <- replica
+    #Indices de incio y fin de replica
     fila_inicio <- (replica - 1) * N + 1
     fila_fin <- replica * N
     replica_data <- data_muestra[fila_inicio:fila_fin, ]
     R2_replica <- as.numeric(data_R2[replica, ])
     
+    #Procesamiento de fila replica
     for (i in seq(1, ncol(replica_data), by = block)) {
       block_end <- min(i + block - 1, ncol(replica_data))
       block_caso <- replica_data[, i:block_end]
       R2_block <- as.numeric(R2_replica[i:500])
+      Rmod <- 0 #Indice de R² a procesar
       
-      Rmod <- 0
-      
+      #Procesamiendo de modelos replica
       for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
         model_end <- min(j + cols_por_model - 1, ncol(block_caso))
         modeloActual <- block_caso[, j:model_end]
-        R2_modelo <- R2_block[Rmod+1]
-        if (is.na(R2_modelo)) {
-          stop("El valor de R2_modelo es NA.")
-        }
+        R2_modelo <- R2_block[Rmod + 1]
         Rmod <- Rmod + 1
-        resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)
+        resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)#Funcion propuesta
+        print(R2_modelo)
+        print(resultadosInter)
         
+        #Procesando resultados del modelo por esquema
         for (numEsquema in 1:length(resultadosInter)) {
           resultados_esquema <- resultadosInter[[numEsquema]]
-          
           intervalos_ganadores <- list()
+          modelo_esquema_eficaz <- TRUE # Bandera de modelo eficaz en esquema
+          
+          #Procesando intervalos por esquema
           for (numIntervalo in 1:length(resultados_esquema)) {
             intervalo <- resultados_esquema[[numIntervalo]]
-            
-            if (!any(is.na(intervalo)) && length(intervalo) == 2) {
-              if (!is.na(R2_modelo)) {
-                R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
-                if (R2_intervalo == 1) {
-                  if (numIntervalo == 1) conteo_replica[numEsquema, 3] <- conteo_replica[numEsquema, 3] + 1
-                  if (numIntervalo == 2) conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1
-                  intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
-                }
-              } else {
-                warning(paste("Valor NA en R2_modelo:", R2_modelo, "en esquema", numEsquema, "intervalo", numIntervalo))
-              }
-            } else {
+            # Verifica si el intervalo es NaN
+            if (any(is.na(intervalo)) || length(intervalo) != 2) {
+              modelo_esquema_eficaz <- FALSE
               warning(paste("Intervalo inválido en esquema", numEsquema, "intervalo", numIntervalo, 
                             "Intervalo:", paste(intervalo, collapse = ","), 
                             "con R2_modelo:", R2_modelo))
+              break
+            } else {
+              # Intervalo es válido, revisar si contiene el R2
+              if (!is.na(R2_modelo)) {
+                R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+                if (R2_intervalo == 1) {
+                  intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
+                }
+              }
+            }
+          }#Fin procesado intervalos por esquema
+          
+          # Si ambos intervalos fueron calculados correctamente
+          if (modelo_esquema_eficaz) {
+            conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1#Modelo eficiente
+            
+            
+            # Lógica para ganador único o empate
+            if (length(intervalos_ganadores) == 1) {
+              if (intervalos_ganadores[[1]]$Intervalo == 1){
+                conteo_replica[numEsquema, 5] <- conteo_replica[numEsquema, 5] + 1 #Eficiencia
+                conteo_replica[numEsquema, 7] <- conteo_replica[numEsquema, 7] + 1 #Ganador
+              }
+              if (intervalos_ganadores[[1]]$Intervalo == 2){
+                conteo_replica[numEsquema, 6] <- conteo_replica[numEsquema, 6] + 1 #Eficiencia
+                conteo_replica[numEsquema, 8] <- conteo_replica[numEsquema, 8] + 1 #Ganador
+              }
+              
+            } else if (length(intervalos_ganadores) == 2) {
+              #Conteo ambas contuvieron a R²
+              conteo_replica[numEsquema, 5] <- conteo_replica[numEsquema, 5] + 1
+              conteo_replica[numEsquema, 6] <- conteo_replica[numEsquema, 6] + 1
+              conteo_efi_replica[numEsquema + 2] <-  conteo_efi_replica[numEsquema + 2] + 1 #Entro en los dos
+              
+              mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
+              if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 9] <- conteo_replica[numEsquema, 9] + 1
+              if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 10] <- conteo_replica[numEsquema, 10] + 1
+            }else{
+              conteo_replica[numEsquema, 11] <- conteo_replica[numEsquema, 11] + 1 #Sin ganadores
             }
           }
-          
-          if (length(intervalos_ganadores) == 1) {
-            if (intervalos_ganadores[[1]]$Intervalo == 1) conteo_replica[numEsquema,5] <- conteo_replica[numEsquema,5] + 1
-            if (intervalos_ganadores[[1]]$Intervalo == 2) conteo_replica[numEsquema,6] <- conteo_replica[numEsquema,6] + 1
-          } else if (length(intervalos_ganadores) == 2) {
-            mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
-            if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 7] <- conteo_replica[numEsquema, 7] + 1
-            if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 8] <- conteo_replica[numEsquema, 8] + 1
-          } else {
-            no_entro_ninguno <- no_entro_ninguno + 1
-            conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
-          }
-        }#Fin de conteo
+      
+        }#Fin por esquemas
         
-        m <- m + 1
-        if (m %% 50 == 0) {
-          print(paste("Procesado", m, "modelos de replicas:", replica))
+        #Segumiento de modelos
+        num_m <- num_m + 1
+        if (num_m %% 50 == 0) {
+          print(paste("Procesados", m, "modelos de replica", replica, "/",replicas))
         }
-        if (m == limit_model) {
+        if (num_m == limit_model) {
           break
         }
-      } # Fin procesando modelo
-    } # Fin proceso bloques de 1000
+         
+      }#Fin de modelos replica
+    }#Fin de replica
     
+    #Guardar resultados obtenidos de replica
     fila_inicio <- (replica - 1) * esquemas + 1
     fila_fin <- replica * esquemas
     conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
-    conteo_ceros_replica[2] <- m
-    conteo_ceros[replica, ] <- conteo_ceros_replica
+    conteo_efi_replica[2] <- num_m
+    conteo_efi[replica, ] <- conteo_efi_replica
     
+    #Guardar resultados en xlsx
     writeData(wb_conteos, "Conteos", conteos_totales, startCol = 1, startRow = 1, rowNames = FALSE)
-    writeData(wb_ceros, "Ceros", conteo_ceros, startCol = 1, startRow = 1, rowNames = FALSE)
-    
+    writeData(wb_eficiencia, "Eficiencia", conteo_efi, startCol = 1, startRow = 1, rowNames = FALSE)
     saveWorkbook(wb_conteos, nombre_archivo_conteos, overwrite = TRUE)
-    saveWorkbook(wb_ceros, nombre_archivo_ceros, overwrite = TRUE)
-  }
+    saveWorkbook(wb_eficiencia, nombre_archivo_efi, overwrite = TRUE)
+   
+  }#Fin de replicas
+  
   cat("Fin de cálculos")
 }
 
@@ -460,7 +491,7 @@ ProcesarMCT <- function(func, modelo, caso, tamano) {
                        stop("Modelo no válido"))
   abre_caso <- c("NVC","NVD","NNVC","NNVD")
   tipo_caso <- switch(caso,{abre_caso[1]},{abre_caso[2]},{abre_caso[3]},{abre_caso[4]},stop())
-  nombre_archivo_logs <- paste("tiempo_warnings__", tipo_model, "__", tipo_caso, "__N", tamano, ".txt", sep = "")
+  nombre_archivo_logs <- paste(tipo_model, "__", tipo_caso, "__N", tamano,"__tiempo_warnings.txt", sep = "")
   write(mensaje, file = nombre_archivo_logs)
 }
 
@@ -470,21 +501,6 @@ ProcesarMCT <- function(func, modelo, caso, tamano) {
 
 # • 10 ← "Preciso"/"NVC"
 ProcesarMCT(ProcesarModelsData, 1, 1, 10)
-
-# • 15 ←  "Preciso"/"NVC"
-ProcesarMCT(ProcesarModelsData,1,1,15)
-
-# • 20 ←  "Preciso"/"NVC"
-ProcesarMCT(ProcesarModelsData,1,1,20)
-
-# • 25 ←  "Preciso"/"NVC"
-ProcesarMCT(ProcesarModelsData,1,1,25)
-
-# • 30 ←  "Preciso"/"NVC"
-ProcesarMCT(ProcesarModelsData,1,1,30)
-
-# • 35 ←  "Preciso"/"NVC"
-ProcesarMCT(ProcesarModelsData,1,1,35)
 
 
 
