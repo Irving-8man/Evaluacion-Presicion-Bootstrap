@@ -13,14 +13,14 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   y <<- as.numeric(data[[2]])
   n <<- length(z)
   B <<- 2500 #Remuestras bootstrap necesarias
-  caso <<- 0 
+  caso <<- 0
+  IC_proces <<- 1 #Construir IC, metodo percentil como inicial
   alpha <<- 1-nivConfianza
   #Casos posibles
   NVC <- 1 #Normalidad- homocedasticidad
   NVD <- 2 #Normalidad-heterocidasticidad
   NNVC <- 3 #No normalidad-homocedasticidad
   NNVD <- 4 #No normalidad-heterocidastecidad 
-  
   #Verificación de supuestos
   hay_normalidad <- FALSE
   varianza_constante <- FALSE
@@ -175,18 +175,23 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   #Decision de caso que nos encontramos
   if(hay_normalidad && varianza_constante){
     caso <- NVC
+    print_colored("\n ****** CASO DE NORMALIDAD - HOMOCEDASTICIDAD ******\n", 37, 34)
   }else{
     # Uso de estimador robusto MM  
     modeloLinealRob <<- lmrob(y ~ z, method = "MM")
     
     if (hay_normalidad && !varianza_constante) {
       caso <- NVD
+      print_colored("\n ****** CASO DE NORMALIDAD - HETEROCIDASTICIDAD ******\n", 37, 34)
     }
     if(!hay_normalidad && varianza_constante){
       caso <- NNVC
+      print_colored("\n ****** CASO DE NO NORMALIDAD - HOMOCEDASTICIDAD ******\n", 37, 34)
     }
     if(!hay_normalidad && !varianza_constante){
       caso <- NNVD
+      print_colored("\n ****** CASO DE NO NORMALIDAD - HETEROCIDASTICIDAD ******\n", 37, 34)
+      IC_proces <- 2
     }
   }
   
@@ -208,7 +213,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
           w <- rep(1,n)
           xx <- which(x > consPes) 
           w[xx] <- (consPes / w[xx])
-          w*resTemp #Usar residuales robustos ponderados MM-estimador ->NVD
+          w*resTemp #Usar residuales robustos ponderados MM-estimador->NVD
         },
         {
           modeloLinealRob$residuals #Usar residuales robustosMM-estimador ->NNVC
@@ -231,24 +236,78 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
         modeloBoots <- lm(yBoots ~ z)
         RsBoot[i] <- summary(modeloBoots)$r.squared
       }
-      
     }else{#Caso NNVD
       N     <- rep(1:n,B)
       NPerm <- sample(N)
-      
       for (i in 1:B) {
         posI <- (i-1)*n+1
         posF <- i*n
-        NPerm[posI:posF]
-        
+        pares_boots<- NPerm[posI:posF]
+        YP <- y[pares_boots]
+        ZP <- z[pares_boots]
+        modeloBoots <- lm(YP ~ ZP)
+        RsBoot[i] <- summary(modeloBoots)$r.squared
       }
-      
     }
   }#Fin Bootstrap
   
- 
+  intervalo <- numeric(2)#Intervalo
+  #Construir intervalo de confinza para R^2
+  {
+    intervalo <- switch(
+      IC_proces,
+      {
+        puntosCriticos <- quantile(RsBoot, c(alpha/2, 1 - alpha/2))
+        as.vector(puntosCriticos)
+      },
+      {
+        z0 <- qnorm(mean(RsBoot < R2))
+        suma0 <-0
+        suma02<-0
+        suma03<-0
+        for(i in 1:n){
+          R2MI<-summary(lm(y[-i]~z[-i]))$r.squared
+          suma0<-R2MI+suma0
+        }
+        R2PMI<- suma0/n
+        for(i in 1:n){
+          Dif0<-R2PMI-summary(lm(y[-i]~z[-i]))$r.squared
+          suma02<-Dif0^2+suma02
+          suma03<-Dif0^3+suma03
+        }
+        a<-suma03/(6*(suma02^1.5))
+        z_alfa1 <- qnorm(alpha / 2)
+        z_alfa2 <- qnorm(1 - alpha / 2)
+        alfa1 <- pnorm(z0 + (z0 + z_alfa1) / (1 - a * (z0 + z_alfa1)))
+        alfa2 <- pnorm(z0 + (z0 + z_alfa2) / (1 - a * (z0 + z_alfa2)))
+        
+        ICInfBCa <- quantile(RsBoot, alfa1)
+        ICSupBCa <- quantile(RsBoot, alfa2)
+        as.vector(c(ICInfBCa, ICSupBCa))
+      },
+      stop("Intervalo no válido")
+    )
+  }
   
-}
+  #Resultado final
+  {
+    resultado <- switch(
+      IC_proces,
+      {
+        print_colored("\nPRECISION (R2) CON EL ESQUEMA BOOTSTRAP Liu 2 y EL I.C. Percentil \n", 37, 40)
+      },
+      {
+        print_colored("\nPRECISION (R2) CON EL ESQUEMA BOOTSTRAP PAREADO BALANCEADO y EL I.C BCa \n", 37, 40)
+      },
+      stop("Prueba invalida")
+    )
+    
+    atributos_IC <- c("R2","R2BootMedia","DesvEstR2Boots","LIR2","LSR2")
+    valores_IC <- c(R2,mean(RsBoot),sd(RsBoot),intervalo[1],intervalo[2])
+    tabla_IC <-data.frame(atributos_IC,valores_IC)
+    print(tabla_IC)
+  }
+}#Fin propuesta final
 
 
 
