@@ -1,3 +1,4 @@
+#Version data frame y version nueva de Bca
 #Tesis Regresion lineal con esquemas robustos
 #Irving Geyler Cupul Uc
 
@@ -25,7 +26,7 @@ PodResidRobu <- function(residualesRob,CMERob){
 CalcularR2Bootstrap <- function(y,z, yAjRob,residuales,residualesRob,residualesRP, hii,n, B, tipo) {
   sqrt_hii <- sqrt(1 - hii)
   RsBoot <- numeric(B)
-
+  
   if((tipo == 7) || (tipo ==8)){
     N     <- rep(1:n,B)
     NPerm <- sample(N)
@@ -101,8 +102,8 @@ CalcularR2Bootstrap <- function(y,z, yAjRob,residuales,residualesRob,residualesR
 ContruirIntervBoot <- function(data,R2,muestrasR2Boot,B=100,nivConfianza=0.95,tipo){
   intervalo <- numeric(2) 
   alpha <- 1-nivConfianza
-  z <- data[,1]
-  y <- data[,2]
+  z <- as.numeric(data[[1]])
+  y <- as.numeric(data[[2]])
   x <- vectorR2Bootstrap <- muestrasR2Boot
   
   intervalo <- switch(
@@ -114,23 +115,35 @@ ContruirIntervBoot <- function(data,R2,muestrasR2Boot,B=100,nivConfianza=0.95,ti
     },
     {
       #fuente(tesis-balam) Bca
-      n <- length(y)
-      p0 <- length(which(vectorR2Bootstrap >= R2))/B #proporcion de e Rˆ2i’s ≥ Rˆ2 duda
-      vectorR2i <- numeric(n)
-      for (i in 1:n){
-        vectorR2i[i] <- summary(lm(y[-i]~z[-i]))$r.squared
+      n<-length(z)
+      # Paso 2: Calcular el factor de corrección de sesgo (z0)
+      z0 <- qnorm(mean(vectorR2Bootstrap < R2))
+      
+      # Paso 3: Calcular el factor de aceleración (a)
+      suma0=0
+      suma02=0
+      suma03=0
+      for(i in 1:n)
+      {R2MI=summary(lm(y[-i]~z[-i]))$r.squared
+      suma0=R2MI+suma0
       }
-      R2iPromedio <- mean(vectorR2i)
-      diferenciasR2iPi <- R2iPromedio - vectorR2i
-      sumaDiferenciasCuad <- sum(diferenciasR2iPi**2)
-      sumaDiferenciasCubo <- sum(diferenciasR2iPi**3)
-      a <- sumaDiferenciasCubo/(6*(sumaDiferenciasCuad**1.5))
+      R2PMI=suma0/n
+      for(i in 1:n)
+      {Dif0=R2PMI-summary(lm(y[-i]~z[-i]))$r.squared
+      suma02=Dif0^2+suma02
+      suma03=Dif0^3+suma03
+      }
+      a=suma03/(6*(suma02^1.5))
       
-      ZL <- qnorm(1-p0) + (qnorm(1-p0) - qnorm(1-alpha/2) )/(1-a *(qnorm(1-p0) - qnorm(1-alpha/2)))
-      ZU <- qnorm(1-p0) + (qnorm(1-p0) + qnorm(1-alpha/2) )/(1-a *(qnorm(1-p0) + qnorm(1-alpha/2))) 
+      # Paso 4: Ajustar percentiles
+      z_alfa1 <- qnorm(alpha / 2)
+      z_alfa2 <- qnorm(1 - alpha / 2)
+      alfa1 <- pnorm(z0 + (z0 + z_alfa1) / (1 - a * (z0 + z_alfa1)))
+      alfa2 <- pnorm(z0 + (z0 + z_alfa2) / (1 - a * (z0 + z_alfa2)))
       
-      ICInfBootBCa <- quantile(vectorR2Bootstrap,probs= pnorm(ZL))
-      ICSupBootBCa <- quantile(vectorR2Bootstrap,probs= pnorm(ZU))
+      # Paso 5: Determinar el intervalo de confianza
+      ICInfBootBCa <- quantile(muestrasR2Boot, alfa1)
+      ICSupBootBCa <- quantile(muestrasR2Boot, alfa2)
       as.vector(c(ICInfBootBCa, ICSupBootBCa))
     },
     {
@@ -153,11 +166,11 @@ ContruirIntervBoot <- function(data,R2,muestrasR2Boot,B=100,nivConfianza=0.95,ti
 
 #Calcular la precisión de un módelo
 CalPrecicion <- function (data,alpha,nivConfianza,caso){
-  z <- data[,1]
-  y <- data[,2]
+  z <- as.numeric(data[[1]])
+  y <- as.numeric(data[[2]])
   n <- length(z)
   print("Entrando en cálculos")
- 
+  
   B <- 100 #Remuestras bootstrap
   
   #Regresion lineal simple
@@ -212,17 +225,17 @@ CalPrecicion <- function (data,alpha,nivConfianza,caso){
   resultadosInter <- vector("list", numRemues)
   
   #Calculo de los intervalos
-    for(i in 1:numRemues){
-      muestrasR2Boot <- valoresBootR[,i]
-      #Percentil
-      perc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=1)
-      #bca
-      bca <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=2)
-      #Percentil-simetrico
-      abc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=3)
-      resultadosInter[[i]] <- list(perc, bca,abc)
-    }
-    
+  for(i in 1:numRemues){
+    muestrasR2Boot <- valoresBootR[,i]
+    #Percentil
+    perc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=1)
+    #bca
+    bca <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=2)
+    #Percentil-simetrico
+    abc <- ContruirIntervBoot(data,R2,muestrasR2Boot,B,nivConfianza=0.95,tipo=3)
+    resultadosInter[[i]] <- list(perc, bca,abc)
+  }
+  
   #print(resultadosInter)
   return(resultadosInter)
 }
@@ -251,17 +264,17 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
                        "Imprecisos" = "EI",
                        stop("Modelo no válido"))
   ruta_model <- file.path(directorio, carp_model)
-
+  
   
   #Elige un caso
   arch_caso <- c("NVC","NVD","NNVC","NNVD")
   tipo_caso <- switch(caso,{arch_caso[1]},{arch_caso[2]},{arch_caso[3]},{arch_caso[4]},stop())
   model_caso <- paste(arch_model, tipo_caso, sep = "")
   ruta_model_caso <- file.path(ruta_model, model_caso)
+  
   # Recuperando los archivos de la ruta
   archivos <- sort(list.files(ruta_model_caso))
   
-
   
   # Encontrar los archivos de muestra y R2 correspondientes
   encontrar_archivos <- function(num) {
@@ -283,7 +296,7 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
   for(muestra in numMuestras){
     archivos_encontrados <- encontrar_archivos(muestra)
     if (!is.null(archivos_encontrados)) {
-      CalPrecMuestras(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra)
+      CalPrecMuestrasv2(archivos_encontrados,caso, replicas, nivConfianza = 0.95, N = muestra)
     } else {
       cat("No se encontró un archivo de muestra o R2 correspondiente para el tamaño de muestra:", muestra, "\n")
     }
@@ -292,9 +305,6 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
   
 }
 
-
-##Pendiente de cambiar el data frame
-##Terminar los pendinetes
 
 
 
@@ -306,7 +316,9 @@ ObtenerArchivoData <- function(modelo,caso,numMuestras = c(10,15,20,25,30,35) ){
 # para replicas sea el número de replicas
 # con nivConfinza entre 0 - 1
 # y sea para N el tamaño de las muestras
-CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, N) {
+
+#Version dataframe
+CalPrecMuestrasv2 <- function(archivos_encontrados, caso, replicas, nivConfianza, N) {
   archivo_muestra <- archivos_encontrados$muestra
   archivo_R2 <- archivos_encontrados$R2
   library(readxl)
@@ -317,29 +329,29 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
   
   block <- 1000
   cols_por_model <- 2
-  
-  # Convertir a matriz para procesamiento
-  data_matrix <- as.matrix(data_muestra)
-  R2_matrix <- as.matrix(data_R2)
-  limit_model <- 10
+  limit_model <- 3
   esquemas <- 8
   
   # Resultados del analisis
+  #Matriz de conteo de resultados
   nombre_cols <- c("Replica","esquema","FrecEficIB1","FrecEficIB2","FrecEficIB3",
                    "FrecEficIB1Unico","FrecEficIB2Unico", "FrecEficIB3Unico",
                    "FrecEficIB1Emp2", "FrecEficIB2Emp2", "FrecEficIB3Emp2",
                    "FrecEficIB1Emp3", "FrecEficIB2Emp3","FrecEficIB3Emp3")
-  
   conteos_totales <- matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas)
   colnames(conteos_totales) <- nombre_cols
   
+  #Matriz de conteo de ceros en las replicas por esquemas
+  nombre_cols_cer <- c("Replicas", "NumMod", "Esq1", "Esq2", "Esq3", "Esq4", "Esq5", "Esq6", "Esq7", "Esq8")
+  conteo_ceros <- matrix(ncol=length(nombre_cols_cer),nrow = replicas)
+  colnames(conteo_ceros) <- nombre_cols_cer
   no_entro_ninguno <-0
-
+  
   # Procesando las replicas
   for (replica in 1:replicas) {
     print(paste("Replica #", replica))
     m <- 0
-      
+    
     # Vectores que contienen los datos por defecto
     conteo_replica <- matrix(0, nrow = 8,ncol = 14)
     replica_vector <- rep(replica, each = esquemas)
@@ -347,18 +359,23 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
     matriz_inicial <- cbind(replica_vector, esquema_vector)
     conteo_replica[, 1:2] <- matriz_inicial
     
+    # Vector para almacenar el conteo de ceros de la réplica actual
+    conteo_ceros_replica <- rep(0, length(nombre_cols_cer))
+    conteo_ceros_replica[1] <- replica
+    
+    
     
     # Extraer el bloque de datos para la réplica actual
     fila_inicio <- (replica - 1) * N + 1
     fila_fin <- replica * N
-    replica_data <- data_matrix[fila_inicio:fila_fin, ]
-    R2_replica <- R2_matrix[replica, ]
+    replica_data <- data_muestra[fila_inicio:fila_fin, ]
+    R2_replica <- data_R2[replica, ]
     
     # Procesar cada bloque de 1000 columnas
     for (i in seq(1, ncol(replica_data), by = block)) {
       block_end <- min(i + block - 1, ncol(replica_data))
       block_caso <- replica_data[, i:block_end]
-      R2_block <- R2_replica[i:block_end]
+      R2_block <- R2_replica[i:500]
       
       Rmod <- 0
       for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
@@ -373,109 +390,110 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
         print("procesado")
         print(R2_modelo)
         
-        
-       #Procesando resultados
-       # Crear un data frame para almacenar los resultados
-       resultados_df <- data.frame(
-         Esquema = integer(),
-         Intervalo = integer(),
-         R2_original = numeric(),
-         Inferior = numeric(),
-         Superior = numeric(),
-         Longitud = numeric(),
-         R2_en_intervalo = integer()
-       )
-       # Llenar el data frame con los intervalos y calcular sus longitudes
-       for (es in 1:length(resultadosInter)) {
-         esquema <- resultadosInter[[es]]
-
-         for (esj in 1:length(esquema)) {
-           intervalo <- esquema[[esj]]
-           longitud <- intervalo[2] - intervalo[1]
-           R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
-           resultados_df <- rbind(resultados_df, data.frame(
-             Esquema = es,
-             Intervalo = esj,
-             R2_original = R2_modelo,
-             Inferior = intervalo[1],
-             Superior = intervalo[2],
-             Longitud = longitud,
-             R2_en_intervalo = R2_intervalo
-           ))
-         }
-       }
-       rownames(resultados_df) <- NULL
-       print(resultados_df)
-      
-      # Procesando ganadores
-      resultados_ganadores <- data.frame(
-        Esquema = integer(),
-        IntervaloGanador = integer(),
-        GanadorPor = integer(),
-        TamanoIntervalo = numeric()
-      )
-      #Procesando los equemas
-      for (es in 1:length(resultadosInter)) {
-        esquema <- resultadosInter[[es]]
-        intervalos_ganadores <- data.frame(
+        ############################################################################
+        #Procesando resultados
+        # Crear un data frame para almacenar los resultados
+        resultados_df <- data.frame(
+          Esquema = integer(),
           Intervalo = integer(),
+          R2_original = numeric(),
           Inferior = numeric(),
           Superior = numeric(),
-          Longitud = numeric()
+          Longitud = numeric(),
+          R2_en_intervalo = integer()
         )
-        
-        #Procesando los intervalos por esquema
-        for (esj in 1:length(esquema)) {
-          intervalo <- esquema[[esj]]
-          longitud <- intervalo[2] - intervalo[1]
-          R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+        # Llenar el data frame con los intervalos y calcular sus longitudes
+        for (es in 1:length(resultadosInter)) {
+          esquema <- resultadosInter[[es]]
           
-          #Filtrar a los que si tienen al R2
-          if (R2_intervalo == 1) {
-            intervalos_ganadores <- rbind(intervalos_ganadores, data.frame(
+          for (esj in 1:length(esquema)) {
+            intervalo <- esquema[[esj]]
+            longitud <- intervalo[2] - intervalo[1]
+            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+            resultados_df <- rbind(resultados_df, data.frame(
+              Esquema = es,
               Intervalo = esj,
+              R2_original = R2_modelo,
               Inferior = intervalo[1],
               Superior = intervalo[2],
-              Longitud = longitud
+              Longitud = longitud,
+              R2_en_intervalo = R2_intervalo
             ))
           }
         }
+        rownames(resultados_df) <- NULL
+        print(resultados_df)
         
-        #Obtener al mejor intervalo por esquema y como gano
-        if (nrow(intervalos_ganadores) == 0) {
-          intervalo_ganador <- 0
-          ganador_por <- 0
-          tamano_intervalo <- 0
-        } else if (nrow(intervalos_ganadores) == 1) {
-          intervalo_ganador <- intervalos_ganadores$Intervalo
-          ganador_por <- 1
-          tamano_intervalo <- intervalos_ganadores$Longitud
-        } else if (nrow(intervalos_ganadores) == 2) {
-          intervalo_ganador <- intervalos_ganadores$Intervalo[which.min(intervalos_ganadores$Longitud)]
-          ganador_por <- 2
-          tamano_intervalo <- intervalos_ganadores$Longitud[which.min(intervalos_ganadores$Longitud)]
-        } else if (nrow(intervalos_ganadores) == 3) {
-          intervalo_ganador <- intervalos_ganadores$Intervalo[which.min(intervalos_ganadores$Longitud)]
-          ganador_por <- 3
-          tamano_intervalo <- intervalos_ganadores$Longitud[which.min(intervalos_ganadores$Longitud)]
-        } 
+        # Procesando ganadores
+        resultados_ganadores <- data.frame(
+          Esquema = integer(),
+          IntervaloGanador = integer(),
+          GanadorPor = integer(),
+          TamanoIntervalo = numeric()
+        )
+        #Procesando los equemas
+        for (es in 1:length(resultadosInter)) {
+          esquema <- resultadosInter[[es]]
+          intervalos_ganadores <- data.frame(
+            Intervalo = integer(),
+            Inferior = numeric(),
+            Superior = numeric(),
+            Longitud = numeric()
+          )
+          
+          #Procesando los intervalos por esquema
+          for (esj in 1:length(esquema)) {
+            intervalo <- esquema[[esj]]
+            longitud <- intervalo[2] - intervalo[1]
+            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+            
+            #Filtrar a los que si tienen al R2
+            if (R2_intervalo == 1) {
+              intervalos_ganadores <- rbind(intervalos_ganadores, data.frame(
+                Intervalo = esj,
+                Inferior = intervalo[1],
+                Superior = intervalo[2],
+                Longitud = longitud
+              ))
+            }
+          }
+          
+          #Obtener al mejor intervalo por esquema y como gano
+          if (nrow(intervalos_ganadores) == 0) {
+            intervalo_ganador <- 0
+            ganador_por <- 0
+            tamano_intervalo <- 0
+          } else if (nrow(intervalos_ganadores) == 1) {
+            intervalo_ganador <- intervalos_ganadores$Intervalo
+            ganador_por <- 1
+            tamano_intervalo <- intervalos_ganadores$Longitud
+          } else if (nrow(intervalos_ganadores) == 2) {
+            intervalo_ganador <- intervalos_ganadores$Intervalo[which.min(intervalos_ganadores$Longitud)]
+            ganador_por <- 2
+            tamano_intervalo <- intervalos_ganadores$Longitud[which.min(intervalos_ganadores$Longitud)]
+          } else if (nrow(intervalos_ganadores) == 3) {
+            intervalo_ganador <- intervalos_ganadores$Intervalo[which.min(intervalos_ganadores$Longitud)]
+            ganador_por <- 3
+            tamano_intervalo <- intervalos_ganadores$Longitud[which.min(intervalos_ganadores$Longitud)]
+          } 
+          
+          #Agregando al mejor por esquema
+          resultados_ganadores <- rbind(resultados_ganadores, data.frame(
+            Esquema = es,
+            IntervaloGanador = intervalo_ganador,
+            GanadorPor = ganador_por,
+            TamanoIntervalo = tamano_intervalo
+          ))
+        }
+        rownames(resultados_ganadores) <- NULL
+        print(resultados_ganadores)
         
-        #Agregando al mejor por esquema
-        resultados_ganadores <- rbind(resultados_ganadores, data.frame(
-          Esquema = es,
-          IntervaloGanador = intervalo_ganador,
-          GanadorPor = ganador_por,
-          TamanoIntervalo = tamano_intervalo
-        ))
-      }
-      rownames(resultados_ganadores) <- NULL
-      print(resultados_ganadores)
-      
-
-      # Procesando los intervalos por esquema
-      for (numEsquema in 1:length(resultadosInter)) {
+        
+        ############################################################################
+        # Procesando los intervalos por esquema
+        for (numEsquema in 1:length(resultadosInter)) {
           resultados_esquema <- resultadosInter[[numEsquema]]
-  
+          
           intervalos_ganadores <- list()
           for (numIntervalo in 1:length(resultados_esquema)) {
             intervalo <- resultados_esquema[[numIntervalo]]
@@ -490,7 +508,7 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
               #print(intervalos_ganadores)  
             }
           }
-            
+          
           # Determinar los ganadores únicos, empates y triple empate
           if (length(intervalos_ganadores) == 1) {
             #Definiendo ganador unico
@@ -514,12 +532,14 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
           }else{
             #Ningun ganador
             no_entro_ninguno <-no_entro_ninguno+1
+            # Ningún ganador, actualizar el conteo de ceros para este esquema
+            conteo_ceros_replica[numEsquema + 2] <- conteo_ceros_replica[numEsquema + 2] + 1
           }
           
           
         }#Fin de conteo
-      
-      
+        
+        
         m <- m + 1
         if (m == limit_model) {
           break
@@ -529,14 +549,18 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
         break
       }
     } # Fin proceso bloques de 1000
-   
+    
     # Agregar conteo_replica a conteos_totales
     fila_inicio <- (replica - 1) * esquemas + 1
     fila_fin <- replica * esquemas
     conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
+    
+    # Actualizar la fila correspondiente en conteo_ceros
+    conteo_ceros_replica[2] <- m
+    conteo_ceros[replica, ] <- conteo_ceros_replica
   } # Fin replicas 
   print(conteos_totales)
+  print(conteo_ceros)
+  #write.csv(x = conteos_totales, file = "conteos.csv", row.names = FALSE) 
+  #write.csv(x = conteo_ceros, file = "conteo_ceros.csv", row.names = FALSE) 
 }
-
-
-

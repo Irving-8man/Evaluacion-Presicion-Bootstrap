@@ -534,6 +534,24 @@ CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, 
 }
 
 
+
+# Determinar los ganadores únicos, empates y triple empate
+if (length(intervalos_ganadores) == 1) {
+  if (intervalos_ganadores[[1]]$Intervalo == 1) FrecEficIB1Unico <- FrecEficIB1Unico + 1
+  if (intervalos_ganadores[[1]]$Intervalo == 2) FrecEficIB2Unico <- FrecEficIB2Unico + 1
+  if (intervalos_ganadores[[1]]$Intervalo == 3) FrecEficIB3Unico <- FrecEficIB3Unico + 1
+} else if (length(intervalos_ganadores) == 2) {
+  FrecEficIB1Emp2 <- FrecEficIB1Emp2 + (1 %in% sapply(intervalos_ganadores, function(x) x$Intervalo))
+  FrecEficIB2Emp2 <- FrecEficIB2Emp2 + (2 %in% sapply(intervalos_ganadores, function(x) x$Intervalo))
+  FrecEficIB3Emp2 <- FrecEficIB3Emp2 + (3 %in% sapply(intervalos_ganadores, function(x) x$Intervalo))
+} else if (length(intervalos_ganadores) == 3) {
+  FrecEficIB1Emp3 <- FrecEficIB1Emp3 + 1
+  FrecEficIB2Emp3 <- FrecEficIB2Emp3 + 1
+  FrecEficIB3Emp3 <- FrecEficIB3Emp3 + 1
+}else{
+  no_entro_ninguno <-no_entro_ninguno+1
+}
+
 #Ganador absoluto
 ganador_absoluto <- resultados_ganadores[which.min(resultados_ganadores$TamanoIntervalo),]
 
@@ -890,3 +908,214 @@ abc.ci(x, fabc, conf = 0.95)
 #x<-rnorm(10)
 theta<- function(x,w){sum(w*x)/sum(w)}
 abc.ci(x,theta,conf=0.95)
+
+
+
+
+
+
+
+CalPrecMuestras <- function(archivos_encontrados, caso, replicas, nivConfianza, N) {
+  archivo_muestra <- archivos_encontrados$muestra
+  archivo_R2 <- archivos_encontrados$R2
+  library(readxl)
+  
+  # Leer los archivos .xlsx considerando que tienen cabecera
+  data_muestra <- read_excel(archivo_muestra, col_names = TRUE)
+  data_R2 <- read_excel(archivo_R2, col_names = TRUE)
+  
+  block <- 1000
+  cols_por_model <- 2
+  limit_model <- 3
+  esquemas <- 8
+  
+  # Resultados del análisis
+  nombre_cols <- c("Replica", "esquema", "FrecEficIB1", "FrecEficIB2", "FrecEficIB3",
+                   "FrecEficIB1Unico", "FrecEficIB2Unico", "FrecEficIB3Unico",
+                   "FrecEficIB1Emp2", "FrecEficIB2Emp2", "FrecEficIB3Emp2",
+                   "FrecEficIB1Emp3", "FrecEficIB2Emp3", "FrecEficIB3Emp3")
+  
+  conteos_totales <- data.frame(matrix(0, ncol = length(nombre_cols), nrow = replicas * esquemas))
+  colnames(conteos_totales) <- nombre_cols
+  
+  no_entro_ninguno <- 0
+  
+  # Procesando las réplicas
+  for (replica in 1:replicas) {
+    print(paste("Replica #", replica))
+    m <- 0
+    
+    # Vectores que contienen los datos por defecto
+    conteo_replica <- data.frame(matrix(0, nrow = 8, ncol = 14))
+    replica_vector <- rep(replica, each = esquemas)
+    esquema_vector <- rep(1:esquemas)
+    matriz_inicial <- data.frame(replica_vector, esquema_vector)
+    conteo_replica[, 1:2] <- matriz_inicial
+    
+    # Extraer el bloque de datos para la réplica actual
+    fila_inicio <- (replica - 1) * N + 1
+    fila_fin <- replica * N
+    replica_data <- data_muestra[fila_inicio:fila_fin, ]
+    R2_replica <- data_R2[replica, ]
+    
+    # Procesar cada bloque de 1000 columnas
+    for (i in seq(1, ncol(replica_data), by = block)) {
+      block_end <- min(i + block - 1, ncol(replica_data))
+      block_caso <- replica_data[, i:block_end]
+      R2_block <- R2_replica[i:block_end]
+      
+      for (j in seq(1, ncol(block_caso), by = cols_por_model)) {
+        model_end <- min(j + cols_por_model - 1, ncol(block_caso))
+        modeloActual <- block_caso[, j:model_end]
+        R2_modelo <- R2_block[ceiling(j / cols_por_model)]
+        
+        # Aquí procesas los datos del modelo actual
+        print(paste("Procesando modelo con columnas:", j, "-", model_end))
+        resultadosInter <- CalPrecicion(modeloActual, alpha, nivConfianza, caso)
+        print("procesado")
+        print(R2_modelo)
+        
+        # Procesando resultados
+        resultados_df <- data.frame(
+          Esquema = integer(),
+          Intervalo = integer(),
+          R2_original = numeric(),
+          Inferior = numeric(),
+          Superior = numeric(),
+          Longitud = numeric(),
+          R2_en_intervalo = integer()
+        )
+        
+        # Llenar el data frame con los intervalos y calcular sus longitudes
+        for (es in 1:length(resultadosInter)) {
+          esquema <- resultadosInter[[es]]
+          
+          for (esj in 1:length(esquema)) {
+            intervalo <- esquema[[esj]]
+            longitud <- intervalo[2] - intervalo[1]
+            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+            resultados_df <- rbind(resultados_df, data.frame(
+              Esquema = es,
+              Intervalo = esj,
+              R2_original = R2_modelo,
+              Inferior = intervalo[1],
+              Superior = intervalo[2],
+              Longitud = longitud,
+              R2_en_intervalo = R2_intervalo
+            ))
+          }
+        }
+        rownames(resultados_df) <- NULL
+        print(resultados_df)
+        
+        # Procesando ganadores
+        resultados_ganadores <- data.frame(
+          Esquema = integer(),
+          IntervaloGanador = integer(),
+          GanadorPor = integer(),
+          TamanoIntervalo = numeric()
+        )
+        
+        for (es in 1:length(resultadosInter)) {
+          esquema <- resultadosInter[[es]]
+          intervalos_ganadores <- data.frame(
+            Intervalo = integer(),
+            Inferior = numeric(),
+            Superior = numeric(),
+            Longitud = numeric()
+          )
+          
+          # Procesando los intervalos por esquema
+          for (esj in 1:length(esquema)) {
+            intervalo <- esquema[[esj]]
+            longitud <- intervalo[2] - intervalo[1]
+            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+            
+            if (R2_intervalo == 1) {
+              intervalos_ganadores <- rbind(intervalos_ganadores, data.frame(
+                Intervalo = esj,
+                Inferior = intervalo[1],
+                Superior = intervalo[2],
+                Longitud = longitud
+              ))
+            }
+          }
+          
+          # Obtener al mejor intervalo por esquema y como ganó
+          if (nrow(intervalos_ganadores) == 0) {
+            intervalo_ganador <- 0
+            ganador_por <- 0
+            tamano_intervalo <- 0
+          } else {
+            # Determinar el mejor intervalo en caso de empate
+            mejor_intervalo <- intervalos_ganadores[which.min(intervalos_ganadores$Longitud), ]
+            intervalo_ganador <- mejor_intervalo$Intervalo
+            ganador_por <- nrow(intervalos_ganadores)
+            tamano_intervalo <- mejor_intervalo$Longitud
+          }
+          
+          resultados_ganadores <- rbind(resultados_ganadores, data.frame(
+            Esquema = es,
+            IntervaloGanador = intervalo_ganador,
+            GanadorPor = ganador_por,
+            TamanoIntervalo = tamano_intervalo
+          ))
+        }
+        rownames(resultados_ganadores) <- NULL
+        print(resultados_ganadores)
+        
+        # Procesando los intervalos por esquema
+        for (numEsquema in 1:length(resultadosInter)) {
+          resultados_esquema <- resultadosInter[[numEsquema]]
+          
+          intervalos_ganadores <- list()
+          for (numIntervalo in 1:length(resultados_esquema)) {
+            intervalo <- resultados_esquema[[numIntervalo]]
+            R2_intervalo <- ifelse(R2_modelo >= intervalo[1] & R2_modelo <= intervalo[2], 1, 0)
+            
+            if (R2_intervalo == 1) {
+              if (numIntervalo == 1) conteo_replica[numEsquema, 3] <- conteo_replica[numEsquema, 3] + 1
+              if (numIntervalo == 2) conteo_replica[numEsquema, 4] <- conteo_replica[numEsquema, 4] + 1
+              if (numIntervalo == 3) conteo_replica[numEsquema, 5] <- conteo_replica[numEsquema, 5] + 1
+              
+              intervalos_ganadores[[length(intervalos_ganadores) + 1]] <- list(Intervalo = numIntervalo, Longitud = intervalo[2] - intervalo[1])
+            }
+          }
+          
+          # Determinar los ganadores únicos, empates y triple empate
+          if (length(intervalos_ganadores) == 1) {
+            if (intervalos_ganadores[[1]]$Intervalo == 1) conteo_replica[numEsquema, 6] <- conteo_replica[numEsquema, 6] + 1
+            if (intervalos_ganadores[[1]]$Intervalo == 2) conteo_replica[numEsquema, 7] <- conteo_replica[numEsquema, 7] + 1
+            if (intervalos_ganadores[[1]]$Intervalo == 3) conteo_replica[numEsquema, 8] <- conteo_replica[numEsquema, 8] + 1
+          } else if (length(intervalos_ganadores) == 2) {
+            mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
+            if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 9] <- conteo_replica[numEsquema, 9] + 1
+            if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 10] <- conteo_replica[numEsquema, 10] + 1
+            if (mejor_intervalo$Intervalo == 3) conteo_replica[numEsquema, 11] <- conteo_replica[numEsquema, 11] + 1
+          } else if (length(intervalos_ganadores) == 3) {
+            mejor_intervalo <- intervalos_ganadores[[which.min(sapply(intervalos_ganadores, function(x) x$Longitud))]]
+            if (mejor_intervalo$Intervalo == 1) conteo_replica[numEsquema, 12] <- conteo_replica[numEsquema, 12] + 1
+            if (mejor_intervalo$Intervalo == 2) conteo_replica[numEsquema, 13] <- conteo_replica[numEsquema, 13] + 1
+            if (mejor_intervalo$Intervalo == 3) conteo_replica[numEsquema, 14] <- conteo_replica[numEsquema, 14] + 1
+          } else {
+            no_entro_ninguno <- no_entro_ninguno + 1
+          }
+        }
+        
+        m <- m + 1
+        if (m == limit_model) {
+          break
+        }
+      } # Fin procesando modelo
+      if (m == limit_model) {
+        break
+      }
+    } # Fin proceso bloques de 1000
+    
+    # Agregar conteo_replica a conteos_totales
+    fila_inicio <- (replica - 1) * esquemas + 1
+    fila_fin <- replica * esquemas
+    conteos_totales[fila_inicio:fila_fin, ] <- conteo_replica
+  } # Fin replicas
+  print(conteos_totales)
+}

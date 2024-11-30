@@ -84,7 +84,7 @@ ComprobarVarianzaBrush <- function(z,modeloLineal, nivConfianza = 0.95){
 }
 
 
-#Brush cuando no hay normalidad
+#White cuando no hay normalidad
 ComprobarVarianzaWhite <- function(z,modeloLineal, nivConfianza = 0.95){
   varianzaConstante <- FALSE
   alpha <- 1-nivConfianza
