@@ -107,7 +107,9 @@ CalcularR2Bootstrap <- function(y, z, yAjRob, residuales, residualesRob, residua
 #muestrasR2Boot <- la muestra de R² Bootstrap, B <- repeticiones Bootstrap, nivConfianza<- nivel de confianza,
 #tipo<- sea el tipo de intervalo de confiaza que desea construir,opciones:
 #1<- percentil, 2<-BCa
+
 ContruirIntervBoot <- function(data, R2, muestrasR2Boot, B, nivConfianza, tipo){
+
   intervalo <- numeric(2) 
   alpha <- 1-nivConfianza
   z <- as.numeric(data[[1]])
@@ -165,7 +167,7 @@ EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
   y <- as.numeric(data[[2]])
   n <- length(z)
   B <- 1000 #Remuestras bootstrap
-  
+
   #Regresion lineal simple
   modeloLineal <- lm(y~z)
   residuales <- residuals(modeloLineal)
@@ -180,8 +182,7 @@ EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
   NNVD <- 4 #No normalidad-heterocidastecidad 
   numRemues <- 8 #Numero de tipos de remuestreos implementados
   rsBoot <- matrix(0,nrow = B, ncol = numRemues)
-  
-  
+
   #Uso de los estimadores dependendiendo el caso
   if(NVC == caso){
     #Minimos cuadrados
@@ -208,9 +209,7 @@ EvalPrecisionModel <- function (data, alpha, nivConfianza, caso){
       residualesRP <- PodResidRobu (residualesRob,CMERob)
     }
   }
-  
-  
-  
+
   #Procesamiento de los residuales en distintos esquemas
   for(i in 1:numRemues){
     BootR <- CalcularR2Bootstrap(y,z, yAjRob,residuales,residualesRob,residualesRP,hii,n,B,tipo=i)
@@ -504,25 +503,3 @@ ProcesarMCT <- function(func, modelo, caso, tamano) {
 
 # • 10 ← "Preciso"/"NVC"
 ProcesarMCT(ProcesarModelsData, 1, 1, 10)
-
-
-
-func2 <- function(B=100){
-  print(B)
-}
-
-
-func3 <- function(B){
-  print(B)
-}
-
-
-
-func1 <-function() {
-  B = 1000
-  func2(B)
-  func3(B)
-}
-
-
-

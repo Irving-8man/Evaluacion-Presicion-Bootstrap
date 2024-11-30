@@ -1,0 +1,8 @@
+Función iniciada en: 2024-09-01 17:38:00.780254 
+ Función finalizada en: 2024-09-01 17:38:34.261765 
+ Tiempo estimado (en segundos):
+   Usuario: 29.6129999999999 
+   Sistema: 0.143000000000001 
+   Total: 33.0420000000013 
+ Warnings capturados:
+ Intervalo inválido en esquema 3 intervalo 2 Intervalo: NaN,NaN con R2_modelo: 0.8719
