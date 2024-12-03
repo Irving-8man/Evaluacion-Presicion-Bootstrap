@@ -4,7 +4,10 @@ data3 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bo
 data4 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NNVD.csv")
 
 
-#Funcion principal
+#Propuesta final
+#Sean los parametros: data una matriz,
+# con la columna 1 las "z" la columna 2 las "y" 
+# y niConfinza un nivel de confinza entre 0-1
 PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   library("nortest")
   library("lmtest")
@@ -13,7 +16,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   z <<- as.numeric(data[[1]])
   y <<- as.numeric(data[[2]])
   n <<- length(z)
-  B <<- 5000 #Remuestras bootstrap necesarias
+  B <<- 2500 #Remuestras bootstrap necesarias
   caso <<- 0
   IC_proces <<- 1 #Construir IC, metodo percentil como inicial
   alpha <<- 1-nivConfianza
@@ -53,14 +56,14 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     pValLILLIE <- lillie.test(residuales)$p.value   #Lilliefort
     ValCLILLIE <- lillie.test(residuales)$statistic
     #Resultados
-    pValor_Norm <- c(pValShap, pValLILLIE)
+    pValor <- c(pValShap, pValLILLIE)
     ValorCal <- c(ValCShap, ValCLILLIE)
-    estadistica <- c("Shapiro-Wilk","Liliefort")
-    tablaNormal <- data.frame(estadistica, pValor_Norm, ValorCal) #Tabla para mostrar resultados de normalidad
-    print_colored("\nRESULTADOS PARA LA PRUEBA DE NORMALIDAD PARA LOS RESIDUALES\n", 37, 40)
+    Estadistica <- c("Shapiro-Wilk","Liliefort")
+    tablaNormal <- data.frame(Estadistica,ValorCal,pValor)
+    print_colored("\nPRUEBA DE NORMALIDAD\n", 37, 40)
     print(tablaNormal)
     
-    pVal_Min <- min(pValor_Norm)
+    pVal_Min <- min(pValor)
     hay_normalidad <-  pVal_Min > alpha
     
     if (hay_normalidad) {
@@ -72,45 +75,74 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     }
   }#Fin prueba normalidad
   
+  
+  #Media cero
+  {
+    #Prueba
+    pValor <-t.test(residuales)$p.value #test T-student
+    ValorCal <- t.test(residuales)$statistic
+    #Construccion de la tabla
+    Estadistica = c("T-Student")
+    tablaVar <- data.frame(Estadistica, ValorCal, pValor)
+    print_colored("\nPRUEBA T-STUDENT PARA MEDIA CERO EN LOS RESIDUALES\n", 37, 40)
+    print(tablaVar)
+    media_cero <- alpha < pValor
+    
+    if(media_cero){
+      cat("\nConclusión: Se cumple el supuesto de media cero en los residuales al ",alpha*100,"%.\n")
+      conceptosClave[3] <- 1
+    }else{
+      cat("\nConclusión: No se cumple el supuesto de media cero en los residuales al",alpha*100,"%.\n")
+      conceptosClave[3] <- 2
+    }
+  }#Fin de prueba de media cero
+  
+  
+  
   #Prueba de varianzas
   {
-    prueba_resultado <- 0
+    pValor <- 0
     prueba_var <- NULL
     aviso_varianza <- NULL
+    ValorCal <- 0
     
     if(hay_normalidad){
       #Aplicar Breusch-Pagan Test
-      prueba_resultado <- bptest(modeloLineal)$p.value
+      pValor <- bptest(modeloLineal)$p.value
+      ValorCal <- bptest(modeloLineal)$statistic
       conceptosClave[2] <- 1
-      prueba_var <- c("Breush-Pagan")
+      Estadistica <- c("Breush-Pagan")
     }else{
       #Aplicar White test
-      prueba_resultado <- bptest(modeloLineal, varformula = ~ I(z^2))$p.value
+      pValor <- bptest(modeloLineal, varformula = ~ I(z^2))$p.value
+      ValorCal <- bptest(modeloLineal, varformula = ~ I(z^2))$statistic
       conceptosClave[2] <- 2
-      prueba_var <- c("White")
+      Estadistica <- c("White")
     }
     
-    valorTestVa <-c(prueba_resultado)
-    tablaVarianza <- data.frame(prueba_var, valorTestVa)#Tabla para mostrar resultados de varianza
+    valorTestVa <-c(pValor)
+    tablaVarianza <- data.frame(Estadistica,ValorCal, pValor)
+    
     aviso_varianza <- switch(
       conceptosClave[2],
       {
-        print_colored("\nRESULTADO PARA LA PRUEBA DE VARIANZA PARA LOS RESIDUALES CON BREUSH-PAGAN\n", 37, 40)
+        print_colored("\nPRUEBA DE IGUALDAD DE VARIANZAS CON BREUSH-PAGAN\n", 37, 40)
       },
       {
-        print_colored("\nRESULTADO PARA LA PRUEBA DE VARIANZA PARA LOS RESIDUALES CON WHITE\n", 37, 40)
+        print_colored("\nPRUEBA DE IGUALDAD DE VARIANZAS CON WHITE\n", 37, 40)
       },
       stop("Prueba invalida")
     )
     
     print(tablaVarianza)
     
-    varianza_constante <- alpha < prueba_resultado #Comprobar varianza con la prueba
+    varianza_constante <- alpha < pValor
+    
     if(varianza_constante){
       aviso_varianza <- switch(
           conceptosClave[2],
           {
-            cat("\nConclusión: Se cumple el supuesto de varianza constante con el estadístico de Breush Pagan al",alpha*100,"%.\n")   
+            cat("\nConclusión: Se cumple el supuesto de varianza constante con el estadístico de Breush-Pagan al",alpha*100,"%.\n")   
           },
           {
             cat("\nConclusión: Se cumple el supuesto de varianza constante con el estadístico de White al",alpha*100,"%.\n")
@@ -121,7 +153,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
       aviso_varianza <- switch(
         conceptosClave[2],
         {
-          cat("\nConclusión: No se cumple el supuesto de varianza constante con el estadístico de Breush Pagan al",alpha*100,"%.\n")   
+          cat("\nConclusión: No se cumple el supuesto de varianza constante con el estadístico de Breush-Pagan al",alpha*100,"%.\n")   
         },
         {
           cat("\nConclusión: No se cumple el supuesto de varianza constante con el estadístico de White al",alpha*100,"%.\n")
@@ -131,67 +163,50 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     }
   }#Fin prueba varianzas
   
-  #Media cero
-  {
-    #Prueba
-    pMedia_Valor <-t.test(residuales)$p.value #test T-student
-    media_ValorCal <- t.test(residuales)$statistic
-    #Construccion de la tabla
-    media_estadis = c("T-Student")
-    tablaVar <- data.frame(media_estadis, pMedia_Valor,media_ValorCal)
-    print_colored("\nRESULTADOS PARA LA PRUEBA DE T-STUDENT PARA MEDIA CERO PARA LOS RESIDUALES\n", 37, 40)
-    print(tablaVar)
-    media_cero <- alpha < pMedia_Valor #comprobar media cero
-    
-    if(media_cero){
-      cat("\nConclusión: Se cumple el supuesto de media cero con el estadístico de T-student al",alpha*100,"%.\n")
-      conceptosClave[3] <- 1
-    }else{
-      cat("\nConclusión: No se cumple el supuesto de media cero con el estadístico de T-student al",alpha*100,"%.\n")
-      conceptosClave[3] <- 2
-    }
-  }#Fin de prueba de media cero
+  
   
   #Independencia
   {
     #Prueba
-    inde_pValor <- dwtest(modeloLineal)$p.value #Durbin-Watson test
-    inde_ValorCal <- dwtest(modeloLineal)$statistic
-    #Construccion de la tabla
-    inde_estadis = c("Durbin-Watson test")
-    tablaVar <- data.frame(inde_estadis, inde_pValor, inde_ValorCal)
-    print_colored("\nRESULTADOS PARA LA PRUEBA DE DURBIN-WATSON PARA INDEPENDENCIA\n", 37, 40)
+    pValor <- dwtest(modeloLineal)$p.value #Durbin-Watson test
+    ValorCal <- dwtest(modeloLineal)$statistic
+    Estadistica = c("Durbin-Watson test")
+    tablaVar <- data.frame(Estadistica,ValorCal, pValor)
+    print_colored("\nPRUEBA DE DURBIN-WATSON PARA INDEPENDENCIA\n", 37, 40)
     print(tablaVar)
-    hay_independencia <- alpha < inde_pValor
+    hay_independencia <- alpha < pValor
     
     if(hay_independencia){
-      cat("\nConclusión: Se cumple el supuesto de independencia con el DURDIN-WATSON TEST al",alpha*100,"%.\n")
+      cat("\nConclusión: Se cumple el supuesto de independencia con DURBIN-WATSON al",alpha*100,"%.\n")
       conceptosClave[4] <- 1
     }else{
-      cat("\nConclusión: No se cumple el supuesto de independencia con el DURDIN-WATSON TEST al",alpha*100,"%.\n")
+      cat("\nConclusión: No se cumple el supuesto de independencia con DURBIN-WATSON al",alpha*100,"%.\n")
       conceptosClave[4] <- 2
     }
   }#Fin de prueba independencia
-  modeloLinealRob <<- lmrob(y ~ z, method = "MM")
+  
+  
+  
+
   #Decision de caso que nos encontramos
   if(hay_normalidad && varianza_constante){
     caso <- NVC
-    print_colored("\n ****** CASO DE NORMALIDAD - HOMOCEDASTICIDAD ******\n", 37, 34)
+    print_colored("\n ****** CASO: NORMALIDAD - HOMOCEDASTICIDAD (NVC) ******\n", 37, 34)
   }else{
     # Uso de estimador robusto MM  
     modeloLinealRob <<- lmrob(y ~ z, method = "MM")
     
     if (hay_normalidad && !varianza_constante) {
       caso <- NVD
-      print_colored("\n ****** CASO DE NORMALIDAD - HETEROCIDASTICIDAD ******\n", 37, 34)
+      print_colored("\n ****** CASO: NORMALIDAD - HETEROCIDASTICIDAD (NVD) ******\n", 37, 34)
     }
     if(!hay_normalidad && varianza_constante){
       caso <- NNVC
-      print_colored("\n ****** CASO DE NO NORMALIDAD - HOMOCEDASTICIDAD ******\n", 37, 34)
+      print_colored("\n ****** CASO: NO NORMALIDAD - HOMOCEDASTICIDAD (NNVC) ******\n", 37, 34)
     }
     if(!hay_normalidad && !varianza_constante){
       caso <- NNVD
-      print_colored("\n ****** CASO DE NO NORMALIDAD - HETEROCIDASTICIDAD ******\n", 37, 34)
+      print_colored("\n ****** CASO: NO NORMALIDAD - HETEROCIDASTICIDAD (NNVD) ******\n", 37, 34)
       IC_proces <- 2
     }
   }
@@ -295,53 +310,42 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     resultado <- switch(
       IC_proces,
       {
-        print_colored("\nPRECISION (R2) CON EL ESQUEMA BOOTSTRAP Liu 2 y EL I.C. Percentil \n", 37, 40)
+        print_colored("\nPRECISION (R2) CON EL ICB PERCENTIL-ESQUEMA BOOTSTRAP LIU2   \n", 37, 40)
       },
       {
-        print_colored("\nPRECISION (R2) CON EL ESQUEMA BOOTSTRAP PAREADO BALANCEADO y EL I.C BCa \n", 37, 40)
+        print_colored("\nPRECISION (R2) CON EL ICB BCa-ESQUEMA BOOTSTRAP PAREADO BALANCEADO \n", 37, 40)
       },
       stop("Prueba invalida")
     )
     
-    atributos_IC <- c("R2","R2BootMedia","DesvEstR2Boots","LIR2","LSR2")
-    valores_IC <- c(R2,mean(RsBoot),sd(RsBoot),intervalo[1],intervalo[2])
-    tabla_IC <-data.frame(atributos_IC,valores_IC)
+    Atributos <- c("R2","R2BootMedia","DesvEstR2Boots","LIR2","LSR2")
+    Valores <- c(R2,mean(RsBoot),sd(RsBoot),intervalo[1],intervalo[2])
+    tabla_IC <-data.frame(Atributos,Valores)
     print(tabla_IC)
     
-    #Conclusion 1
-    if(R2>=intervalo[1] && R2 <= intervalo[2] && R2>=limite_precision){
-      
-    }else{
-      
-    }
-    
-    R2_preciso <- ifelse(R2>=intervalo[1] & R2 <= intervalo[2] & R2>=limite_precision, 1, 0)
+    R2_preciso <- ifelse( (limite_precision>=intervalo[1] & limite_precision <= intervalo[2]) || (intervalo[1] >= limite_precision) , 1, 0)
     
     conclusion <- switch(
       IC_proces,
       {
-        if ( R2_preciso == 1) {
-          cat("\nConclusión: El modelo es preciso con el método Percentil al",nivConfianza*100,"%.\n")   
+        if (R2_preciso == 1) {
+          cat("\nConclusión: El modelo es preciso con el ICB Percentil al ",nivConfianza*100,"%.\n")   
         }else{
-          cat("\nConclusión: El modelo es impreciso con el método Percentil al",nivConfianza*100,"%.\n")
+          cat("\nConclusión: El modelo es impreciso con el ICB Percentil al",nivConfianza*100,"%.\n")
         }
       },{
-        if ( R2_preciso == 1) {
-          cat("\nConclusión: El modelo es preciso con el método BCa al",nivConfianza*100,"%.\n")   
+        if (R2_preciso == 1) {
+          cat("\nConclusión: El modelo es preciso con el ICB BCa al",nivConfianza*100,"%.\n")   
         }else{
-          cat("\nConclusión: El modelo es impreciso con el método Bca al",nivConfianza*100,"%.\n")
+          cat("\nConclusión: El modelo es impreciso con el ICB BCa al",nivConfianza*100,"%.\n")
         }
       }
     )
     
-    
-  }
+    cat("\n Criterio: Si el ",limite_precision, " está contenido en el ICB o es mayor igual al limite inferior del ICB.\n")
+  }#Fin de bloque final
+  
 }#Fin propuesta final
-
-
-
-
-
 
 
 
@@ -349,6 +353,13 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
 
 #Caso NVC
 PropFCalcPrecModl(data = data1, nivConfianza = 0.95)
+
+#Caso NNVD
+PropFCalcPrecModl(data = data4, nivConfianza = 0.95)
+
+
+
+
 
 
 #Caso NNVC
@@ -359,7 +370,6 @@ PropFCalcPrecModl(data = data2, nivConfianza = 0.95)
 PropFCalcPrecModl(data = data3, nivConfianza = 0.95)
 
 
-#Caso NNVD
-PropFCalcPrecModl(data = data4, nivConfianza = 0.95)
+
 
 

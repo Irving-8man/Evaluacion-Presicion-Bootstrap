@@ -362,8 +362,6 @@ ProcesarModels <- function(archivos_encontrados, caso, replicas, nivConfianza, N
         R2_modelo <- R2_block[Rmod + 1]
         Rmod <- Rmod + 1
         resultadosInter <- EvalPrecisionModel(modeloActual, alpha, nivConfianza, caso)#Funcion propuesta
-        print(R2_modelo)
-        print(resultadosInter)
         
         #Procesando resultados del modelo por esquema
         for (numEsquema in 1:length(resultadosInter)) {
