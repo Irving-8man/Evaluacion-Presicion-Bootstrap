@@ -1,7 +1,8 @@
 data1 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NVC.csv")
-data2 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NNVD.csv")
-data3 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NNVC.csv")
-data4 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NVD.csv")
+data2 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NNVC.csv")
+data3 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NVD.csv")
+data4 <- read.csv("C:/Users/geyle/Downloads/Irving/tesis/Evaluacion-Presicion-Bootstrap/Data_pruebas/Datos_Caso_NNVD.csv")
+
 
 #Funcion principal
 PropFCalcPrecModl <- function(data, nivConfianza=0.95){
@@ -12,7 +13,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   z <<- as.numeric(data[[1]])
   y <<- as.numeric(data[[2]])
   n <<- length(z)
-  B <<- 2500 #Remuestras bootstrap necesarias
+  B <<- 5000 #Remuestras bootstrap necesarias
   caso <<- 0
   IC_proces <<- 1 #Construir IC, metodo percentil como inicial
   alpha <<- 1-nivConfianza
@@ -27,7 +28,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
   media_cero <- FALSE
   hay_independencia <-FALSE
   conceptosClave <<- rep(0,4) #Banderas de apoyo en las 4 pruebas
-  
+  limite_precision <<-0.7
   
   #Regresion lineal simple
   modeloLineal <- lm(y~z)
@@ -52,14 +53,14 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     pValLILLIE <- lillie.test(residuales)$p.value   #Lilliefort
     ValCLILLIE <- lillie.test(residuales)$statistic
     #Resultados
-    pValores <- c(pValShap, pValLILLIE)
+    pValor_Norm <- c(pValShap, pValLILLIE)
     ValorCal <- c(ValCShap, ValCLILLIE)
     estadistica <- c("Shapiro-Wilk","Liliefort")
-    tablaNormal <- data.frame(estadistica, pValores, ValorCal) #Tabla para mostrar resultados de normalidad
+    tablaNormal <- data.frame(estadistica, pValor_Norm, ValorCal) #Tabla para mostrar resultados de normalidad
     print_colored("\nRESULTADOS PARA LA PRUEBA DE NORMALIDAD PARA LOS RESIDUALES\n", 37, 40)
     print(tablaNormal)
     
-    pVal_Min <- min(pValores)
+    pVal_Min <- min(pValor_Norm)
     hay_normalidad <-  pVal_Min > alpha
     
     if (hay_normalidad) {
@@ -171,7 +172,7 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
       conceptosClave[4] <- 2
     }
   }#Fin de prueba independencia
-  
+  modeloLinealRob <<- lmrob(y ~ z, method = "MM")
   #Decision de caso que nos encontramos
   if(hay_normalidad && varianza_constante){
     caso <- NVC
@@ -306,8 +307,40 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
     valores_IC <- c(R2,mean(RsBoot),sd(RsBoot),intervalo[1],intervalo[2])
     tabla_IC <-data.frame(atributos_IC,valores_IC)
     print(tabla_IC)
+    
+    #Conclusion 1
+    if(R2>=intervalo[1] && R2 <= intervalo[2] && R2>=limite_precision){
+      
+    }else{
+      
+    }
+    
+    R2_preciso <- ifelse(R2>=intervalo[1] & R2 <= intervalo[2] & R2>=limite_precision, 1, 0)
+    
+    conclusion <- switch(
+      IC_proces,
+      {
+        if ( R2_preciso == 1) {
+          cat("\nConclusión: El modelo es preciso con el método Percentil al",nivConfianza*100,"%.\n")   
+        }else{
+          cat("\nConclusión: El modelo es impreciso con el método Percentil al",nivConfianza*100,"%.\n")
+        }
+      },{
+        if ( R2_preciso == 1) {
+          cat("\nConclusión: El modelo es preciso con el método BCa al",nivConfianza*100,"%.\n")   
+        }else{
+          cat("\nConclusión: El modelo es impreciso con el método Bca al",nivConfianza*100,"%.\n")
+        }
+      }
+    )
+    
+    
   }
 }#Fin propuesta final
+
+
+
+
 
 
 
@@ -318,7 +351,15 @@ PropFCalcPrecModl <- function(data, nivConfianza=0.95){
 PropFCalcPrecModl(data = data1, nivConfianza = 0.95)
 
 
-#Caso NNVD
+#Caso NNVC
 PropFCalcPrecModl(data = data2, nivConfianza = 0.95)
+
+
+#Caso NVD
+PropFCalcPrecModl(data = data3, nivConfianza = 0.95)
+
+
+#Caso NNVD
+PropFCalcPrecModl(data = data4, nivConfianza = 0.95)
 
 
